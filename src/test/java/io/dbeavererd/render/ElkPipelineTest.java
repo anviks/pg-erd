@@ -64,6 +64,11 @@ class ElkPipelineTest {
             for (int i = 1; i < c.size(); i++) {
                 assertTrue(c.xs[i] == c.xs[i - 1] || c.ys[i] == c.ys[i - 1], name + ": segment " + i + " not axis-aligned");
             }
+            if (c.size() >= 3) {
+                int straight = d.options.notation.indentation;
+                assertTrue(Math.abs(c.xs[1] - c.xs[0]) >= straight, name + ": first segment shorter than the end symbol");
+                assertTrue(Math.abs(c.xs[c.size() - 1] - c.xs[c.size() - 2]) >= straight, name + ": last segment shorter than the end symbol");
+            }
             Rectangle fkRow = c.source.rowBounds(c.association.sourceColumns().get(0));
             assertEquals(c.source.x, c.xs[0], name + ": starts on the source's left edge");
             assertEquals(fkRow.getCenter().y, c.ys[0], name + ": starts at the FK row");

@@ -46,7 +46,8 @@ public final class ElkLayout {
     static final double NODE_SPACING = 40;
     static final double LAYER_SPACING = 70;
     static final double EDGE_SPACING = 10;
-    static final double EDGE_NODE_SPACING = 20;
+    /** Extra straight run beyond the notation's end symbol before a line may bend. */
+    static final double STRAIGHT_RUN_PADDING = 10;
     static final double COMPONENT_SPACING = 40;
 
     private static boolean registered;
@@ -102,8 +103,11 @@ public final class ElkLayout {
         root.setProperty(LayeredOptions.SPACING_NODE_NODE_BETWEEN_LAYERS, LAYER_SPACING);
         root.setProperty(CoreOptions.SPACING_EDGE_EDGE, EDGE_SPACING);
         root.setProperty(LayeredOptions.SPACING_EDGE_EDGE_BETWEEN_LAYERS, EDGE_SPACING);
-        root.setProperty(CoreOptions.SPACING_EDGE_NODE, EDGE_NODE_SPACING);
-        root.setProperty(LayeredOptions.SPACING_EDGE_NODE_BETWEEN_LAYERS, EDGE_NODE_SPACING);
+        // keep the first/last segment straight for at least the length of the end symbol (+ its label)
+        double edgeNode = options.notation.indentation + STRAIGHT_RUN_PADDING;
+        root.setProperty(CoreOptions.SPACING_EDGE_NODE, edgeNode);
+        root.setProperty(LayeredOptions.SPACING_EDGE_NODE_BETWEEN_LAYERS, edgeNode);
+        root.setProperty(LayeredOptions.SPACING_NODE_SELF_LOOP, edgeNode);
         root.setProperty(CoreOptions.SPACING_PORT_PORT, (double) options.notation.fanStep);
         root.setProperty(CoreOptions.SPACING_COMPONENT_COMPONENT, COMPONENT_SPACING);
         root.setProperty(CoreOptions.SEPARATE_CONNECTED_COMPONENTS, true);
