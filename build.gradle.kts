@@ -29,6 +29,11 @@ configurations {
 dependencies {
     implementation("info.picocli:picocli:4.7.7")
     implementation("org.postgresql:postgresql:42.7.14")
+    // Eclipse Layout Kernel: layered layout with ports and orthogonal edge routing
+    implementation("org.eclipse.elk:org.eclipse.elk.core:0.12.0")
+    implementation("org.eclipse.elk:org.eclipse.elk.alg.layered:0.12.0")
+    // ELK's generated option classes use Xtext's xbase runtime library (declared "provided" upstream)
+    implementation("org.eclipse.xtext:org.eclipse.xtext.xbase.lib:2.44.0")
 
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")

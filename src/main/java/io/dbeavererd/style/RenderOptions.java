@@ -19,6 +19,19 @@ public final class RenderOptions {
         }
     }
 
+    /** Layout + routing engine. */
+    public enum Layout {
+        /** Eclipse Layout Kernel: layered, parents left of children, ports at the FK/PK rows, orthogonal lines. */
+        ELK,
+        /** DBeaver's own arrangement and shortest-path (diagonal) routing. */
+        DBEAVER;
+
+        public static Layout parse(String s) {
+            return valueOf(s.trim().toUpperCase());
+        }
+    }
+
+    public Layout layout = Layout.ELK;
     public Notation notation = Notation.IDEF1X;
     public Anchor anchor = Anchor.COLUMN;
     /**

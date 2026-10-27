@@ -27,3 +27,9 @@ code is included.
 (https://github.com/microsoft/Selawik, release 1.01), a font metric-compatible
 with Segoe UI (DBeaver's default UI font on Windows). License: SIL Open Font
 License 1.1, see `src/main/resources/fonts/LICENSE-Selawik.txt`.
+
+## Eclipse Layout Kernel — EPL-2.0
+The default layout uses ELK (`org.eclipse.elk.core`, `org.eclipse.elk.alg.layered`, version 0.12.0) and
+its runtime dependencies (Eclipse EMF, Xtext xbase.lib, Google Guava), bundled in the jar. ELK, EMF and
+Xtext are licensed under the Eclipse Public License 2.0 (`licenses/EPL-2.0.txt`); Guava under the
+Apache License 2.0.
