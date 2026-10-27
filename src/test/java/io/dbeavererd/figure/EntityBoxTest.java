@@ -42,6 +42,37 @@ class EntityBoxTest {
     }
 
     @Test
+    void nonLatinTextFallsBackToASystemFont() throws Exception {
+        RenderOptions o = Fixtures.options();
+        o.styles = EnumSet.of(ViewStyle.ICONS, ViewStyle.COMMENTS);
+        TextMeasurer m = new TextMeasurer();
+        Entity e = new Entity("public", "units", Entity.Kind.TABLE, "Организации");
+        e.addAttribute(new io.dbeavererd.model.Attribute("inn", "varchar(12)", "types/string", false, false, false, false, "ИНН (Russian tax ID)"));
+        EntityBox box = new EntityBox(e, o, m);
+        int latinOnly = m.width("inn - (Russian tax ID)", o.fonts.regular);
+        assertTrue(box.attrs.rows.get(0).labelTextW > latinOnly + 10, "Cyrillic characters take up width");
+        assertTrue(box.descW > 0);
+
+        box.x = 5; box.y = 5;
+        BufferedImage img = new BufferedImage(box.right() + 5, box.bottom() + 5, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setColor(o.theme.diagramBackground);
+        g.fillRect(0, 0, img.getWidth(), img.getHeight());
+        box.paint(new Java2DCanvas(g, new Icons(), m));
+        g.dispose();
+        // the description row (under the title) must contain dark pixels: the Cyrillic text was drawn
+        int descTop = box.y + 2 + box.titleH;
+        int dark = 0;
+        for (int yy = descTop; yy < descTop + box.descH; yy++) {
+            for (int xx = box.x + 2; xx < box.right() - 2; xx++) {
+                if ((img.getRGB(xx, yy) & 0xff) < 100) dark++;
+            }
+        }
+        assertTrue(dark > 50, "Cyrillic description rendered, dark pixels=" + dark);
+        ImageIO.write(img, "png", new File("build/test-output/cyrillic.png"));
+    }
+
+    @Test
     void rendersSampleEntitiesToPng() throws Exception {
         RenderOptions o = Fixtures.options();
         TextMeasurer m = new TextMeasurer();

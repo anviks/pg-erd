@@ -100,9 +100,14 @@ public final class Java2DCanvas implements Canvas {
     @Override
     public void drawText(String s, int x, int y, Font f, Color c) {
         if (s == null || s.isEmpty()) return;
-        g.setFont(f);
         g.setColor(c);
-        g.drawString(s, x, y + measurer.ascent(f));
+        int baseline = y + measurer.ascent(f);
+        int cx = x;
+        for (TextRuns.Run r : TextRuns.split(s, f)) {
+            g.setFont(r.font());
+            g.drawString(r.text(), cx, baseline);
+            cx += measurer.width(r.text(), r.font());
+        }
     }
 
     @Override

@@ -36,7 +36,12 @@ public final class TextMeasurer {
     }
 
     public int width(String s, Font f) {
-        return s == null || s.isEmpty() ? 0 : fm(f).stringWidth(s);
+        if (s == null || s.isEmpty()) return 0;
+        int w = 0;
+        for (TextRuns.Run r : TextRuns.split(s, f)) {
+            w += fm(r.font()).stringWidth(r.text());
+        }
+        return w;
     }
 
     public int height(Font f) {

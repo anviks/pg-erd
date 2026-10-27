@@ -18,8 +18,11 @@ The password is read from `PGPASSWORD` by default (`--password-env NAME` for ano
 
 ## Requirements
 
-* Java 21 or newer to run the jar (no display, fonts or native libraries needed).
+* Java 21 or newer to run the jar (no display or native libraries needed).
 * PostgreSQL 10 or newer.
+* The bundled font covers Latin only. Names and comments in other scripts (Cyrillic, Greek, CJK, ...)
+  are drawn with the system's sans-serif font, so a CI image needs one that covers those scripts
+  installed (for example `fonts-dejavu` or `fonts-noto` on Debian/Ubuntu, `dejavu-sans-fonts` on Fedora).
 
 ## Build
 
