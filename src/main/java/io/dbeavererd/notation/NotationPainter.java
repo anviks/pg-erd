@@ -1,0 +1,14 @@
+package io.dbeavererd.notation;
+
+import io.dbeavererd.render.Canvas;
+import io.dbeavererd.route.RoutedConnection;
+import io.dbeavererd.style.RenderOptions;
+import org.eclipse.draw2d.geometry.Rectangle;
+
+/** Draws one routed connection (line + end decorations + labels) in a given notation. */
+public interface NotationPainter {
+    void paint(Canvas canvas, RoutedConnection conn, RenderOptions options);
+
+    /** Bounding box of everything {@link #paint} draws, for the export extent. */
+    Rectangle bounds(RoutedConnection conn, RenderOptions options);
+}
