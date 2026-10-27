@@ -36,9 +36,10 @@ public final class AutoLayout {
 
     /**
      * @param aspect viewport width/height ratio used to decide how many disconnected entities go in one row
+     * @param mirror flip the result horizontally so referenced (parent) tables end up left of FK children
      * @return bendpoints per association (only for edges spanning more than two ranks)
      */
-    public static Map<Association, List<Point>> layout(Diagram diagram, List<EntityBox> boxes, double aspect) {
+    public static Map<Association, List<Point>> layout(Diagram diagram, List<EntityBox> boxes, double aspect, boolean mirror) {
         Map<Entity, EntityBox> boxOf = new IdentityHashMap<>();
         for (EntityBox b : boxes) boxOf.put(b.entity, b);
 
@@ -94,9 +95,14 @@ public final class AutoLayout {
         connectStandaloneNodes(graph, aspect);
         new DirectedGraphLayout().visit(graph);
 
+        int totalWidth = 0;
         for (EntityBox box : boxes) {
             Node n = nodeOf.get(box);
-            box.x = n.x;
+            totalWidth = Math.max(totalWidth, n.x + n.width);
+        }
+        for (EntityBox box : boxes) {
+            Node n = nodeOf.get(box);
+            box.x = mirror ? totalWidth - (n.x + n.width) : n.x;
             box.y = n.y;
         }
 
@@ -106,7 +112,7 @@ public final class AutoLayout {
             if (e.vNodes != null && e.vNodes.size() > 1) {
                 List<Point> list = new ArrayList<>();
                 for (Node vn : e.vNodes) {
-                    int x = vn.x;
+                    int x = mirror ? totalWidth - vn.x : vn.x;
                     int y = vn.y;
                     list.add(new Point(x, y));
                     if (e.isFeedback()) {

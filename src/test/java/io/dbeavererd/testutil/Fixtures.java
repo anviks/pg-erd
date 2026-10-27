@@ -43,6 +43,47 @@ public final class Fixtures {
         return e;
     }
 
+    /** A {@code users} table referenced by {@code n} other tables, to exercise fan-out on the PK row. */
+    public static Diagram hub(int n) {
+        Diagram d = new Diagram("hub");
+        Entity users = new Entity("public", "users", Entity.Kind.TABLE, null);
+        users.addAttribute(col("id", "int4", "types/number", true, true, false));
+        users.addAttribute(col("name", "text", "types/string", true, false, false));
+        users.addAttribute(col("email", "varchar(255)", "types/string", true, false, false));
+        d.addEntity(users);
+        for (int i = 1; i <= n; i++) {
+            Entity e = new Entity("public", "child_" + i, Entity.Kind.TABLE, null);
+            e.addAttribute(col("id", "int4", "types/number", true, true, false));
+            e.addAttribute(col("user_id", "int4", "types/number", i % 3 != 0, false, true));
+            e.addAttribute(col("payload", "text", "types/string", false, false, false));
+            d.addEntity(e);
+            d.addAssociation(new Association("child_" + i + "_user_id_fkey", e, users, List.of("user_id"), List.of("id"), false, i % 3 == 0, false, null));
+        }
+        return d;
+    }
+
+    /** One {@code units} table with {@code n} FK columns to {@code n} different parents (many starts on one side). */
+    public static Diagram multiFk(int n) {
+        Diagram d = new Diagram("multifk");
+        Entity units = new Entity("public", "units", Entity.Kind.TABLE, null);
+        units.addAttribute(col("id", "int4", "types/number", true, true, false));
+        units.addAttribute(col("name", "text", "types/string", true, false, false));
+        List<Entity> parents = new java.util.ArrayList<>();
+        for (int i = 1; i <= n; i++) {
+            units.addAttribute(col("ref" + i + "_id", "int4", "types/number", false, false, true));
+            Entity p = new Entity("public", "parent_" + i, Entity.Kind.TABLE, null);
+            p.addAttribute(col("id", "int4", "types/number", true, true, false));
+            p.addAttribute(col("label", "text", "types/string", false, false, false));
+            parents.add(p);
+        }
+        d.addEntity(units);
+        for (Entity p : parents) d.addEntity(p);
+        for (int i = 1; i <= n; i++) {
+            d.addAssociation(new Association("units_ref" + i + "_fkey", units, parents.get(i - 1), List.of("ref" + i + "_id"), List.of("id"), false, true, false, null));
+        }
+        return d;
+    }
+
     /** ~8 tables: FK chain, nullable FK, self-reference, disconnected table, view, composite PK. */
     public static Diagram shop() {
         Diagram d = new Diagram("shop");

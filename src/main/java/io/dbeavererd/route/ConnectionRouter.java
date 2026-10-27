@@ -30,11 +30,25 @@ public final class ConnectionRouter {
     private ConnectionRouter() {
     }
 
+    /** Smallest spacing between fanned-out ends when a table is too short for the notation's step (decorations are 10 px tall). */
+    static final int MIN_FAN_STEP = 12;
+
+    /**
+     * @param columnAnchors  true to attach the source end to the FK column's row, exiting horizontally;
+     *                       false for DBeaver's entity-centre anchors at both ends
+     * @param targetColumns  with columnAnchors, also attach the target end to the referenced column's row
+     * @param exitLeft       with columnAnchors, always leave the FK row through the table's left edge
+     * @param fanStep        vertical spacing between row-anchored ends that share a table side
+     */
     public static List<RoutedConnection> route(
         List<EntityBox> boxes,
         List<RoutedConnection> connections,
         Map<Association, List<Point>> layoutBends,
-        int indentation
+        int indentation,
+        boolean columnAnchors,
+        boolean targetColumns,
+        boolean exitLeft,
+        int fanStep
     ) {
         ShortestPathRouter algorithm = new ShortestPathRouter();
         List<Rectangle> obstacles = new ArrayList<>();
@@ -46,13 +60,30 @@ public final class ConnectionRouter {
 
         Map<Path, RoutedConnection> connOf = new IdentityHashMap<>();
         List<Path> paths = new ArrayList<>();
+        Map<RoutedConnection, Rectangle> srcAnchor = new IdentityHashMap<>();
+        Map<RoutedConnection, Rectangle> trgAnchor = new IdentityHashMap<>();
         for (RoutedConnection c : connections) {
+            Rectangle sa = null;
+            Rectangle ta = null;
+            if (columnAnchors) {
+                sa = c.association.sourceColumns().isEmpty() ? null : c.source.rowBounds(c.association.sourceColumns().get(0));
+                if (targetColumns) {
+                    ta = c.association.targetColumns().isEmpty() ? null : c.target.rowBounds(c.association.targetColumns().get(0));
+                }
+            }
+            srcAnchor.put(c, sa);
+            trgAnchor.put(c, ta);
             Path path = new Path(c);
-            path.setStartPoint(center(c.source));
-            path.setEndPoint(center(c.target));
+            if (sa != null && exitLeft) {
+                // start the search at the end of the left stub, outside the table, so the router goes around it if needed
+                path.setStartPoint(new Point(sa.x - 1 - indentation, sa.getCenter().y));
+            } else {
+                path.setStartPoint(sa != null ? sa.getCenter() : center(c.source));
+            }
+            path.setEndPoint(ta != null ? ta.getCenter() : center(c.target));
             List<Point> bends = layoutBends.get(c.association);
             if (bends == null && c.source == c.target) {
-                bends = selfLoopBends(c.source);
+                bends = selfLoopBends(c.source, exitLeft && sa != null);
             }
             if (bends != null && !bends.isEmpty()) {
                 PointList pl = new PointList(bends.size());
@@ -84,8 +115,10 @@ public final class ConnectionRouter {
             Point ref2 = points.getPoint(points.size() - 2);
             Rectangle srcBounds = bounds(current.source);
             Rectangle trgBounds = bounds(current.target);
-            Point start = chopbox(srcBounds, ref1);
-            Point end = chopbox(trgBounds, ref2);
+            Rectangle srcRow = srcAnchor.get(current);
+            Rectangle trgRow = trgAnchor.get(current);
+            Point start = srcRow != null ? (exitLeft ? leftExit(srcRow) : rowExit(srcRow, ref1)) : chopbox(srcBounds, ref1);
+            Point end = trgRow != null ? rowExit(trgRow, ref2) : chopbox(trgBounds, ref2);
             points.setPoint(start, 0);
             points.setPoint(end, points.size() - 1);
 
@@ -105,12 +138,12 @@ public final class ConnectionRouter {
                     int dyStart = Math.abs(start.y - p.y);
                     int dxEnd = Math.abs(end.x - p.x);
                     int dyEnd = Math.abs(end.y - p.y);
-                    if (dxStart == 0 && dyStart < POINT_DISTANCE) {
+                    if (srcRow == null && dxStart == 0 && dyStart < POINT_DISTANCE) {
                         start = new Point(start.x + dxSrcTrg, start.y - dySrcTrg);
                         Point first = points.getPoint(0);
                         points.setPoint(new Point(first.x + dxSrcTrg, first.y - dySrcTrg), 0);
                     }
-                    if (dxEnd == 0 && dyEnd < POINT_DISTANCE) {
+                    if (trgRow == null && dxEnd == 0 && dyEnd < POINT_DISTANCE) {
                         end = new Point(end.x - dxTrgSrc, end.y - dyTrgSrc);
                         Point last = points.getPoint(points.size() - 1);
                         points.setPoint(new Point(last.x - dxTrgSrc, last.y - dyTrgSrc), points.size() - 1);
@@ -142,7 +175,100 @@ public final class ConnectionRouter {
                 current.ys[i] = p.y;
             }
         }
+        if (columnAnchors) {
+            fanOutSharedRowEnds(connections, srcAnchor, trgAnchor, fanStep);
+        }
         return connections;
+    }
+
+    /**
+     * Column anchors: the line leaves the row through its left or right edge at the row's vertical
+     * centre, on the side facing the next path point (ChopboxAnchor geometry: left edge at x-1, right at x+w).
+     */
+    /** Column anchors with left exits: always the row's left edge (ChopboxAnchor puts it at x-1). */
+    static Point leftExit(Rectangle row) {
+        return new Point(row.x - 1, row.getCenter().y);
+    }
+
+    static Point rowExit(Rectangle row, Point reference) {
+        Point c = row.getCenter();
+        int x = reference.x < c.x ? row.x - 1 : row.x + row.width;
+        return new Point(x, c.y);
+    }
+
+    /** Ends collide only when they hit the same row from the same side. */
+    private record SideKey(EntityBox box, int x, int rowY) {
+    }
+
+    /** One line end in a fan-out group: which connection, which end, its row, and where it approaches from. */
+    private record FanEnd(RoutedConnection conn, boolean isEnd, Rectangle row, int approachY, int approachX) {
+    }
+
+    /**
+     * Lines attached to the same row on the same table side would meet at one point. Spread them
+     * {@code fanStep} px apart along that side, centred on the row and spilling over neighbouring rows
+     * when needed (but never outside the table), ordered by where each line comes from so they do not
+     * cross at the edge. Ends on different rows are left exactly on their rows.
+     */
+    static void fanOutSharedRowEnds(List<RoutedConnection> connections, Map<RoutedConnection, Rectangle> srcAnchor,
+                                    Map<RoutedConnection, Rectangle> trgAnchor, int fanStep) {
+        Map<SideKey, List<FanEnd>> groups = new LinkedHashMap<>();
+        for (RoutedConnection c : connections) {
+            int n = c.size();
+            if (n < 3) continue;
+            Rectangle sr = srcAnchor.get(c);
+            Rectangle tr = trgAnchor.get(c);
+            if (sr != null) {
+                // the point after the start stub shows where the line heads
+                groups.computeIfAbsent(new SideKey(c.source, c.xs[0], sr.y), k -> new ArrayList<>())
+                    .add(new FanEnd(c, false, sr, c.ys[2], c.xs[2]));
+            }
+            if (tr != null) {
+                groups.computeIfAbsent(new SideKey(c.target, c.xs[n - 1], tr.y), k -> new ArrayList<>())
+                    .add(new FanEnd(c, true, tr, c.ys[n - 3], c.xs[n - 3]));
+            }
+        }
+        for (Map.Entry<SideKey, List<FanEnd>> g : groups.entrySet()) {
+            List<FanEnd> ends = g.getValue();
+            if (ends.size() < 2) continue;
+            EntityBox box = g.getKey().box();
+            long sum = 0;
+            for (FanEnd e : ends) sum += e.row().getCenter().y;
+            int centerY = (int) (sum / ends.size());
+            // by target row first, then lines arriving from above land higher; ties by horizontal distance
+            ends.sort((a, b) -> {
+                if (a.row().y != b.row().y) return Integer.compare(a.row().y, b.row().y);
+                if (a.approachY() != b.approachY()) return Integer.compare(a.approachY(), b.approachY());
+                return Integer.compare(a.approachX(), b.approachX());
+            });
+            int n = ends.size();
+            int minY = box.y + EntityBox.BORDER + 1;
+            int maxY = box.bottom() - EntityBox.BORDER - 1;
+            int step = fanStep;
+            if ((n - 1) * step > maxY - minY) {
+                step = Math.max(MIN_FAN_STEP, (maxY - minY) / (n - 1));
+            }
+            boolean crowded = step < fanStep;
+            int span = (n - 1) * step;
+            int top = centerY - span / 2;
+            if (top + span > maxY) top = maxY - span;
+            if (top < minY) top = minY;
+            for (int k = 0; k < n; k++) {
+                int y = top + k * step;
+                FanEnd e = ends.get(k);
+                RoutedConnection c = e.conn();
+                if (e.isEnd()) {
+                    int last = c.size() - 1;
+                    c.ys[last] = y;
+                    c.ys[last - 1] = y;
+                    c.crowdedEnd = crowded;
+                } else {
+                    c.ys[0] = y;
+                    c.ys[1] = y;
+                    c.crowdedStart = crowded;
+                }
+            }
+        }
     }
 
     static Rectangle bounds(EntityBox b) {
@@ -158,7 +284,7 @@ public final class ConnectionRouter {
      * AssociationPart.setConnectionRouting: four RelativeBendpoints for a self-reference, which with
      * both anchors at the box centre and weight 0.5 evaluate to centre + (d1 + d2) / 2.
      */
-    static List<Point> selfLoopBends(EntityBox b) {
+    static List<Point> selfLoopBends(EntityBox b, boolean leftSide) {
         int w = b.width;
         int h = b.height;
         int w2 = w / 2;
@@ -169,6 +295,10 @@ public final class ConnectionRouter {
         bends.add(relative(c, w, h2, w, -h2 + w2 / 2));
         bends.add(relative(c, w, h2, w, -h2 - w2 / 2));
         bends.add(relative(c, w, h2, w / 2, -h2 - w2));
+        if (leftSide) {
+            // mirror the loop to the left of the table, where the FK row exits
+            for (Point p : bends) p.x = 2 * c.x - p.x;
+        }
         return bends;
     }
 

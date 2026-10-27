@@ -204,6 +204,25 @@ public final class EntityBox {
         return s;
     }
 
+    /**
+     * Full-width rectangle of the row showing {@code attributeName}, or null if that column is not
+     * displayed (filtered by visibility or unknown).
+     */
+    public org.eclipse.draw2d.geometry.Rectangle rowBounds(String attributeName) {
+        int yy = y + BORDER + titleH + descH;
+        for (Section s : new Section[] {keys, attrs}) {
+            int ry = yy + LIST_MARGIN_H;
+            for (Row r : s.rows) {
+                if (r.attribute.name().equals(attributeName)) {
+                    return new org.eclipse.draw2d.geometry.Rectangle(x, ry, width, r.itemH);
+                }
+                ry += r.itemH;
+            }
+            yy += s.prefH;
+        }
+        return null;
+    }
+
     public int right() { return x + width; }
     public int bottom() { return y + height; }
     public int centerX() { return x + width / 2; }

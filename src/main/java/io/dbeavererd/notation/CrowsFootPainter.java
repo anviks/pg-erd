@@ -75,10 +75,15 @@ public final class CrowsFootPainter implements NotationPainter {
 
         Font font = options.fonts.notation;
         Color labelColor = theme.decorationColor();
-        Rectangle lb = labelBounds(conn, false, src.label, font);
-        c.drawText(src.label, lb.x, lb.y, font, labelColor);
-        lb = labelBounds(conn, true, trg.label, font);
-        c.drawText(trg.label, lb.x, lb.y, font, labelColor);
+        // labels are dropped on a side where ends had to be packed too tightly for them to stay legible
+        if (!conn.crowdedStart) {
+            Rectangle lb = labelBounds(conn, false, src.label, font);
+            c.drawText(src.label, lb.x, lb.y, font, labelColor);
+        }
+        if (!conn.crowdedEnd) {
+            Rectangle lb = labelBounds(conn, true, trg.label, font);
+            c.drawText(trg.label, lb.x, lb.y, font, labelColor);
+        }
 
         if (options.has(ViewStyle.COMMENTS) && conn.association.comment() != null && !conn.association.comment().isEmpty()) {
             Labels.paintMidpointLabel(c, conn, conn.association.comment(), options.fonts.regular, theme.attrForeground, options);

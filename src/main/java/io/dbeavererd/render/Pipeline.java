@@ -33,7 +33,9 @@ public final class Pipeline {
             boxOf.put(e, b);
         }
 
-        Map<Association, List<Point>> bends = AutoLayout.layout(diagram, boxes, options.aspect);
+        boolean columnAnchors = options.anchor != RenderOptions.Anchor.COLUMN ? options.anchor == RenderOptions.Anchor.BOTH : true;
+        boolean exitLeft = columnAnchors && options.fkExitLeft;
+        Map<Association, List<Point>> bends = AutoLayout.layout(diagram, boxes, options.aspect, exitLeft);
 
         // connections in the same order the layout saw them: per entity, its outgoing associations
         List<RoutedConnection> conns = new ArrayList<>();
@@ -42,7 +44,8 @@ public final class Pipeline {
                 conns.add(new RoutedConnection(a, boxOf.get(a.source()), boxOf.get(a.target())));
             }
         }
-        ConnectionRouter.route(boxes, conns, bends, options.notation.indentation);
+        ConnectionRouter.route(boxes, conns, bends, options.notation.indentation, columnAnchors,
+            options.anchor == RenderOptions.Anchor.BOTH, exitLeft, options.notation.fanStep);
 
         NotationPainter painter = switch (options.notation) {
             case IDEF1X -> new Idef1xPainter();

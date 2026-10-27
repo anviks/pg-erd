@@ -45,6 +45,8 @@ The build uses a Java 21 toolchain; if no JDK is installed, Gradle downloads one
 | `--svg FILE.svg` | | SVG output (`--svg-embed-font` makes it self-contained) |
 | `--scale N` | 1 | integer upscale of the PNG for HiDPI |
 | `--notation idef1x\|crowsfoot` | `idef1x` | connection notation |
+| `--fk-side left\|nearest` | `left` | with column anchors, leave through the table's left edge next to the column name (parents are then arranged left of children) or through whichever side is nearest |
+| `--anchor column\|both\|entity` | `column` | `column`: lines leave from the FK column's row and arrive anywhere on the referenced table's border; `both`: they also arrive at the referenced column's row; `entity`: DBeaver's behaviour at both ends |
 | `--attributes all\|keys\|primary\|none` | `all` | which columns to show |
 | `--show types,nullability,comments,fqn,alpha` | | DBeaver's view styles (icons are on; `--hide icons` turns them off) |
 | `--theme light\|dark` | `light` | DBeaver's light or dark ERD colours |
@@ -64,7 +66,13 @@ Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.
 * **Layout**: DBeaver's "Arrange all" (Draw2D `DirectedGraphLayout`, left-to-right, same padding),
   including how tables without relations are packed into rows. DBeaver uses the editor window's
   aspect ratio for that; `--aspect` stands in for it.
-* **Routing**: DBeaver's shortest-path router with the same end stubs and clipping.
+* **Routing**: DBeaver's shortest-path router with the same end stubs and clipping. By default a line
+  leaves from the row of its FK column through the table's left edge, right next to the column name
+  (DBeaver aims at the entity centre), and arrives on the referenced table's border the way DBeaver
+  does. To make that read naturally the auto-arranged layout is mirrored so parents sit left of their
+  children; `--fk-side nearest` keeps DBeaver's left-to-right arrangement instead. `--anchor both` also pins the arrival to the referenced column's
+  row, fanning out lines that share a table side (12 px for IDEF1X, 24 px for crow's foot, packed tighter
+  with labels dropped when the table is too short); `--anchor entity` restores DBeaver's behaviour.
 * **Types**: shown like DBeaver, i.e. PostgreSQL's internal names: `int4`, `varchar(255)`,
   `numeric(10, 2)`, `timestamptz`, `_text` for arrays, `schema.type` for user-defined types.
 

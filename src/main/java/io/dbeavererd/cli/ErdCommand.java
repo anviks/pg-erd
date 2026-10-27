@@ -65,6 +65,10 @@ public final class ErdCommand implements Callable<Integer> {
 
     @Option(names = "--notation", defaultValue = "idef1x", paramLabel = "idef1x|crowsfoot", description = "Connection notation (default: ${DEFAULT-VALUE}).")
     String notation;
+    @Option(names = "--anchor", defaultValue = "column", paramLabel = "column|both|entity", description = "Where lines attach: column = start at the FK column's row, end anywhere on the referenced table's border (default); both = start and end on their column rows; entity = both ends like DBeaver.")
+    String anchor;
+    @Option(names = "--fk-side", defaultValue = "left", paramLabel = "left|nearest", description = "With column anchors: leave the FK row through the table's left edge, next to the column name, arranging parents left of children (default); or through the nearest side with DBeaver's left-to-right arrangement.")
+    String fkSide;
     @Option(names = "--attributes", defaultValue = "all", paramLabel = "all|keys|primary|none", description = "Which columns to show (default: ${DEFAULT-VALUE}).")
     String attributes;
     @Option(names = "--show", split = ",", paramLabel = "STYLE", description = "Extra view styles: types, nullability, comments, fqn, alpha (icons are on by default).")
@@ -165,6 +169,12 @@ public final class ErdCommand implements Callable<Integer> {
     RenderOptions buildOptions() {
         RenderOptions o = new RenderOptions();
         o.notation = Notation.parse(notation);
+        o.anchor = RenderOptions.Anchor.parse(anchor);
+        o.fkExitLeft = switch (fkSide.trim().toLowerCase()) {
+            case "left" -> true;
+            case "nearest" -> false;
+            default -> throw new IllegalArgumentException("--fk-side must be left or nearest");
+        };
         o.visibility = AttributeVisibility.parse(attributes);
         EnumSet<ViewStyle> styles = EnumSet.of(ViewStyle.ICONS);
         for (String s : show) styles.add(ViewStyle.parse(s));
