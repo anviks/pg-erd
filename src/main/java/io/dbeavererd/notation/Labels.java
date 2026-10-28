@@ -1,5 +1,6 @@
 package io.dbeavererd.notation;
 
+import io.dbeavererd.geom.Rect;
 import io.dbeavererd.render.Canvas;
 import io.dbeavererd.render.TextMeasurer;
 import io.dbeavererd.route.RoutedConnection;
@@ -8,7 +9,7 @@ import io.dbeavererd.style.RenderOptions;
 import java.awt.Color;
 import java.awt.Font;
 
-/** Connection labels (Draw2D ConnectionLocator.MIDDLE). */
+/** Connection labels (Draw2D ConnectionLocator.MIDDLE) and shared bounds helpers. */
 final class Labels {
     private static final TextMeasurer MEASURER = new TextMeasurer();
 
@@ -32,5 +33,15 @@ final class Labels {
         int w = MEASURER.width(text, font);
         int h = MEASURER.height(font);
         c.drawText(text, mx - w / 2, my - h / 2, font, color);
+    }
+
+    /** Bounds of the 1 px polyline itself: every point grown by one pixel on each side. */
+    static Rect polylineBounds(RoutedConnection conn) {
+        Rect r = null;
+        for (int i = 0; i < conn.size(); i++) {
+            Rect p = new Rect(conn.xs[i] - 1, conn.ys[i] - 1, 2, 2);
+            r = r == null ? p : r.union(p);
+        }
+        return r == null ? new Rect() : r;
     }
 }

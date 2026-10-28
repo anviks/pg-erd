@@ -4,7 +4,7 @@ import io.dbeavererd.figure.EntityBox;
 import io.dbeavererd.notation.NotationPainter;
 import io.dbeavererd.route.RoutedConnection;
 import io.dbeavererd.style.RenderOptions;
-import org.eclipse.draw2d.geometry.Rectangle;
+import io.dbeavererd.geom.Rect;
 
 import java.util.List;
 
@@ -23,18 +23,18 @@ public final class RenderedDiagram {
     }
 
     /** FreeformLayeredPane.getFreeformExtent(): union of the entity and connection layers. */
-    public Rectangle extent() {
-        Rectangle r = null;
+    public Rect extent() {
+        Rect r = null;
         for (EntityBox b : boxes) {
-            Rectangle e = new Rectangle(b.x, b.y, b.width, b.height);
+            Rect e = b.bounds();
             r = r == null ? e : r.union(e);
         }
         for (RoutedConnection c : connections) {
-            Rectangle e = notation.bounds(c, options);
+            Rect e = notation.bounds(c, options);
             if (e.isEmpty()) continue;
             r = r == null ? e : r.union(e);
         }
-        return r == null ? new Rectangle() : r;
+        return r == null ? new Rect() : r;
     }
 
     /** Paint order of GEF's printable layers: primary layer (entities) first, connection layer on top. */

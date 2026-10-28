@@ -65,12 +65,6 @@ public final class ErdCommand implements Callable<Integer> {
 
     @Option(names = "--notation", defaultValue = "idef1x", paramLabel = "idef1x|crowsfoot", description = "Connection notation (default: ${DEFAULT-VALUE}).")
     String notation;
-    @Option(names = "--layout", defaultValue = "elk", paramLabel = "elk|dbeaver", description = "Layout engine: elk = layered layout with lines attached to the FK and key columns and right-angle routing (default); dbeaver = DBeaver's own arrangement and diagonal lines (see --anchor, --fk-side, --aspect).")
-    String layout;
-    @Option(names = "--anchor", defaultValue = "column", paramLabel = "column|both|entity", description = "Where lines attach: column = start at the FK column's row, end anywhere on the referenced table's border (default); both = start and end on their column rows; entity = both ends like DBeaver.")
-    String anchor;
-    @Option(names = "--fk-side", defaultValue = "left", paramLabel = "left|nearest", description = "With column anchors: leave the FK row through the table's left edge, next to the column name, arranging parents left of children (default); or through the nearest side with DBeaver's left-to-right arrangement.")
-    String fkSide;
     @Option(names = "--attributes", defaultValue = "all", paramLabel = "all|keys|primary|none", description = "Which columns to show (default: ${DEFAULT-VALUE}).")
     String attributes;
     @Option(names = "--show", split = ",", paramLabel = "STYLE", description = "Extra view styles: types, nullability, comments, fqn, alpha (icons are on by default).")
@@ -86,8 +80,6 @@ public final class ErdCommand implements Callable<Integer> {
     String font;
     @Option(names = "--font-size", defaultValue = "9", description = "Font size in points (default: ${DEFAULT-VALUE}, DBeaver's default).")
     float fontSize;
-    @Option(names = "--aspect", defaultValue = "1.6", description = "Viewport width/height ratio used to arrange tables without relations into rows (default: ${DEFAULT-VALUE}).")
-    double aspect;
 
     @Override
     public Integer call() {
@@ -171,13 +163,6 @@ public final class ErdCommand implements Callable<Integer> {
     RenderOptions buildOptions() {
         RenderOptions o = new RenderOptions();
         o.notation = Notation.parse(notation);
-        o.layout = RenderOptions.Layout.parse(layout);
-        o.anchor = RenderOptions.Anchor.parse(anchor);
-        o.fkExitLeft = switch (fkSide.trim().toLowerCase()) {
-            case "left" -> true;
-            case "nearest" -> false;
-            default -> throw new IllegalArgumentException("--fk-side must be left or nearest");
-        };
         o.visibility = AttributeVisibility.parse(attributes);
         EnumSet<ViewStyle> styles = EnumSet.of(ViewStyle.ICONS);
         for (String s : show) styles.add(ViewStyle.parse(s));
@@ -196,8 +181,6 @@ public final class ErdCommand implements Callable<Integer> {
         o.fonts = Fonts.load(font, fontSize);
         if (scale < 1 || scale > 8) throw new IllegalArgumentException("--scale must be between 1 and 8");
         o.scale = scale;
-        if (aspect <= 0) throw new IllegalArgumentException("--aspect must be positive");
-        o.aspect = aspect;
         o.embedSvgFont = embedFont;
         return o;
     }

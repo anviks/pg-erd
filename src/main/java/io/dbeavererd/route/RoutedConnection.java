@@ -10,9 +10,6 @@ public final class RoutedConnection {
     public final EntityBox target;
     public int[] xs;
     public int[] ys;
-    /** Set by the fan-out when ends on this side are packed tighter than the notation needs for labels. */
-    public boolean crowdedStart;
-    public boolean crowdedEnd;
 
     public RoutedConnection(Association association, EntityBox source, EntityBox target) {
         this.association = association;

@@ -1,16 +1,14 @@
 package io.dbeavererd.notation;
 
 import io.dbeavererd.figure.EntityBox;
+import io.dbeavererd.geom.Points;
+import io.dbeavererd.geom.Rect;
 import io.dbeavererd.render.Canvas;
 import io.dbeavererd.render.TextMeasurer;
 import io.dbeavererd.route.RoutedConnection;
 import io.dbeavererd.style.RenderOptions;
 import io.dbeavererd.style.Theme;
 import io.dbeavererd.style.ViewStyle;
-import org.eclipse.draw2d.geometry.Dimension;
-import org.eclipse.draw2d.geometry.Point;
-import org.eclipse.draw2d.geometry.PointList;
-import org.eclipse.draw2d.geometry.Rectangle;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -29,20 +27,13 @@ public final class CrowsFootPainter implements NotationPainter {
     static final int LBL_U_DISTANCE = 3;
     static final int DIAMETER = 8;
     static final double SCALE = 5;
-    static final PointList TEMPLATE = new PointList();
+    /**
+     * Template points: 0-2 crow's foot, 3-4 first dash, 5-6 second dash, 7 circle centre, 8 top.
+     */
+    static final Points TEMPLATE = new Points(
+        new int[] {0, -2, 0, -2, -2, -3, -3, -3, -6},
+        new int[] {-1, 0, 1, -1, 1, -1, 1, 0, 0});
     private static final TextMeasurer MEASURER = new TextMeasurer();
-
-    static {
-        TEMPLATE.addPoint(0, -1);   // 0 crow's foot
-        TEMPLATE.addPoint(-2, 0);   // 1
-        TEMPLATE.addPoint(0, 1);    // 2
-        TEMPLATE.addPoint(-2, -1);  // 3 dash 1
-        TEMPLATE.addPoint(-2, 1);   // 4
-        TEMPLATE.addPoint(-3, -1);  // 5 dash 2
-        TEMPLATE.addPoint(-3, 1);   // 6
-        TEMPLATE.addPoint(-3, 0);   // 7 circle
-        TEMPLATE.addPoint(-6, 0);   // 8 top
-    }
 
     private record End(Type type, String label) {
     }
@@ -55,6 +46,13 @@ public final class CrowsFootPainter implements NotationPainter {
         return c.association.optional() ? new End(Type.ZERO_OR_ONE, LABEL_0_TO_1) : new End(Type.ONE_ONLY, LABEL_1);
     }
 
+    private static Points decoration(RoutedConnection conn, boolean end) {
+        int n = conn.size();
+        return end
+            ? Decorations.transform(TEMPLATE, SCALE, conn.xs[n - 1], conn.ys[n - 1], conn.xs[n - 2], conn.ys[n - 2])
+            : Decorations.transform(TEMPLATE, SCALE, conn.xs[0], conn.ys[0], conn.xs[1], conn.ys[1]);
+    }
+
     @Override
     public void paint(Canvas c, RoutedConnection conn, RenderOptions options) {
         if (conn.size() < 2) return;
@@ -62,41 +60,30 @@ public final class CrowsFootPainter implements NotationPainter {
         Color line = theme.linesForeground;
         c.drawPolyline(conn.xs, conn.ys, conn.size(), 1, line, null);
 
-        int n = conn.size();
-        Point p0 = new Point(conn.xs[0], conn.ys[0]);
-        Point p1 = new Point(conn.xs[1], conn.ys[1]);
-        Point pn = new Point(conn.xs[n - 1], conn.ys[n - 1]);
-        Point pn1 = new Point(conn.xs[n - 2], conn.ys[n - 2]);
-
         End src = sourceEnd(conn);
         End trg = targetEnd(conn);
-        paintDecoration(c, Decorations.transform(TEMPLATE, SCALE, p0, p1), src.type, theme);
-        paintDecoration(c, Decorations.transform(TEMPLATE, SCALE, pn, pn1), trg.type, theme);
+        paintDecoration(c, decoration(conn, false), src.type, theme);
+        paintDecoration(c, decoration(conn, true), trg.type, theme);
 
         Font font = options.fonts.notation;
         Color labelColor = theme.decorationColor();
-        // labels are dropped on a side where ends had to be packed too tightly for them to stay legible
-        if (!conn.crowdedStart) {
-            Rectangle lb = labelBounds(conn, false, src.label, font);
-            c.drawText(src.label, lb.x, lb.y, font, labelColor);
-        }
-        if (!conn.crowdedEnd) {
-            Rectangle lb = labelBounds(conn, true, trg.label, font);
-            c.drawText(trg.label, lb.x, lb.y, font, labelColor);
-        }
+        Rect lb = labelBounds(conn, false, src.label, font);
+        c.drawText(src.label, lb.x, lb.y, font, labelColor);
+        lb = labelBounds(conn, true, trg.label, font);
+        c.drawText(trg.label, lb.x, lb.y, font, labelColor);
 
         if (options.has(ViewStyle.COMMENTS) && conn.association.comment() != null && !conn.association.comment().isEmpty()) {
             Labels.paintMidpointLabel(c, conn, conn.association.comment(), options.fonts.regular, theme.attrForeground, options);
         }
     }
 
-    private static void paintDecoration(Canvas c, PointList pts, Type type, Theme theme) {
+    private static void paintDecoration(Canvas c, Points pts, Type type, Theme theme) {
         Color fg = theme.linesForeground;
         Color bg = theme.diagramBackground;
         switch (type) {
             case ZERO_OR_ONE -> {
                 line(c, pts, 3, 4, fg);
-                circle(c, pts.getPoint(7), fg, bg);
+                circle(c, pts.x(7), pts.y(7), fg, bg);
             }
             case ONE_ONLY -> {
                 line(c, pts, 3, 4, fg);
@@ -110,88 +97,83 @@ public final class CrowsFootPainter implements NotationPainter {
             case ZERO_OR_MANY -> {
                 line(c, pts, 0, 1, fg);
                 line(c, pts, 1, 2, fg);
-                circle(c, pts.getPoint(7), fg, bg);
+                circle(c, pts.x(7), pts.y(7), fg, bg);
             }
         }
     }
 
-    private static void line(Canvas c, PointList pts, int a, int b, Color color) {
-        Point pa = pts.getPoint(a);
-        Point pb = pts.getPoint(b);
-        c.drawPolyline(new int[] {pa.x, pb.x}, new int[] {pa.y, pb.y}, 2, 1, color, null);
+    private static void line(Canvas c, Points pts, int a, int b, Color color) {
+        c.drawPolyline(new int[] {pts.x(a), pts.x(b)}, new int[] {pts.y(a), pts.y(b)}, 2, 1, color, null);
     }
 
-    private static void circle(Canvas c, Point p, Color fg, Color bg) {
+    private static void circle(Canvas c, int x, int y, Color fg, Color bg) {
         int r = DIAMETER / 2;
-        c.fillOval(p.x - r, p.y - r, DIAMETER, DIAMETER, bg);
-        c.drawOval(p.x - r, p.y - r, DIAMETER, DIAMETER, 1, fg);
+        c.fillOval(x - r, y - r, DIAMETER, DIAMETER, bg);
+        c.drawOval(x - r, y - r, DIAMETER, DIAMETER, 1, fg);
     }
 
     /** Draw2D ConnectionEndpointLocator.relocate for a label of the given text. */
-    static Rectangle labelBounds(RoutedConnection conn, boolean end, String text, Font font) {
+    static Rect labelBounds(RoutedConnection conn, boolean end, String text, Font font) {
         int n = conn.size();
         int sp = end ? n - 1 : 0;
         int ep = end ? n - 2 : 1;
-        Point startPoint = new Point(conn.xs[sp], conn.ys[sp]);
-        Point endPoint = new Point(conn.xs[ep], conn.ys[ep]);
+        int startX = conn.xs[sp];
+        int startY = conn.ys[sp];
+        int endX = conn.xs[ep];
+        int endY = conn.ys[ep];
         EntityBox owner = end ? conn.target : conn.source;
-        Rectangle ownerBounds = new Rectangle(owner.x, owner.y, owner.width, owner.height);
-        int quadrant = connectionLocation(startPoint, ownerBounds.getTopLeft(), ownerBounds.getCenter());
+        int quadrant = connectionLocation(startX, startY, owner.x, owner.y, owner.centerX(), owner.centerY());
 
         int cos = 1;
         boolean transpose = quadrant == 1 || quadrant == 3;
         if (quadrant == 3 || quadrant == 4) cos = -1;
 
-        Dimension figureSize = new Dimension(MEASURER.width(text, font), MEASURER.height(font));
-        Dimension size = transpose ? figureSize.getTransposed() : figureSize.getCopy();
-        Point s = transpose ? startPoint.getTransposed() : startPoint.getCopy();
-        Point e = transpose ? endPoint.getTransposed() : endPoint.getCopy();
+        int textW = MEASURER.width(text, font);
+        int textH = MEASURER.height(font);
+        // in the transposed frame x and y swap roles
+        int figureWidth = transpose ? textH : textW;
+        int figureHeight = transpose ? textW : textH;
+        int sx = transpose ? startY : startX;
+        int sy = transpose ? startX : startY;
+        int ex = transpose ? endY : endX;
+        int ey = transpose ? endX : endY;
 
         double tan;
-        if (e.x == s.x) {
+        if (ex == sx) {
             tan = 1.0;
         } else {
-            tan = (double) (e.y - s.y) / (double) (e.x - s.x);
+            tan = (double) (ey - sy) / (double) (ex - sx);
         }
         if (tan > 1) tan = 1.0;
         else if (tan < -1) tan = -1.0;
 
-        int figureWidth = size.width;
-        int figureHeight = size.height;
         int yShift = 0;
         if (LBL_V_DISTANCE < 0) yShift = -figureHeight;
         else if (LBL_V_DISTANCE == 0) yShift = -figureHeight / 2;
 
-        Point figurePoint = new Point(s.x + (LBL_U_DISTANCE * cos) + figureWidth * ((cos - 1) / 2),
-            (int) (s.y + cos * LBL_U_DISTANCE * tan + LBL_V_DISTANCE + yShift));
-        Point loc = transpose ? figurePoint.getTransposed() : figurePoint;
-        return new Rectangle(loc.x, loc.y, figureSize.width, figureSize.height);
+        int fx = sx + (LBL_U_DISTANCE * cos) + figureWidth * ((cos - 1) / 2);
+        int fy = (int) (sy + cos * LBL_U_DISTANCE * tan + LBL_V_DISTANCE + yShift);
+        return transpose ? new Rect(fy, fx, textW, textH) : new Rect(fx, fy, textW, textH);
     }
 
-    private static int connectionLocation(Point loc, Point topLeft, Point center) {
-        if (loc.x == center.x) {
-            return (loc.y < center.y) ? 3 : 1;
+    private static int connectionLocation(int locX, int locY, int topLeftX, int topLeftY, int centerX, int centerY) {
+        if (locX == centerX) {
+            return (locY < centerY) ? 3 : 1;
         }
-        double m1 = (double) (topLeft.y - center.y) / (double) (topLeft.x - center.x);
-        double m2 = (double) (loc.y - center.y) / (double) (loc.x - center.x);
+        double m1 = (double) (topLeftY - centerY) / (double) (topLeftX - centerX);
+        double m2 = (double) (locY - centerY) / (double) (locX - centerX);
         if (Math.abs(m2) <= Math.abs(m1)) {
-            return (loc.x < center.x) ? 4 : 2;
+            return (locX < centerX) ? 4 : 2;
         }
-        return (loc.y < center.y) ? 3 : 1;
+        return (locY < centerY) ? 3 : 1;
     }
 
     @Override
-    public Rectangle bounds(RoutedConnection conn, RenderOptions options) {
-        Rectangle r = null;
-        for (int i = 0; i < conn.size(); i++) {
-            Rectangle p = new Rectangle(conn.xs[i] - 1, conn.ys[i] - 1, 2, 2);
-            r = r == null ? p : r.union(p);
-        }
-        if (r == null) return new Rectangle();
+    public Rect bounds(RoutedConnection conn, RenderOptions options) {
+        Rect r = Labels.polylineBounds(conn);
         if (conn.size() >= 2) {
-            int n = conn.size();
-            r.union(Decorations.bounds(Decorations.transform(TEMPLATE, SCALE, new Point(conn.xs[0], conn.ys[0]), new Point(conn.xs[1], conn.ys[1]))).expand(DIAMETER, DIAMETER));
-            r.union(Decorations.bounds(Decorations.transform(TEMPLATE, SCALE, new Point(conn.xs[n - 1], conn.ys[n - 1]), new Point(conn.xs[n - 2], conn.ys[n - 2]))).expand(DIAMETER, DIAMETER));
+            r.union(Decorations.bounds(decoration(conn, false)).expand(DIAMETER, DIAMETER));
+            r.union(Decorations.bounds(decoration(conn, true)).expand(DIAMETER, DIAMETER));
             Font font = options.fonts.notation;
             r.union(labelBounds(conn, false, sourceEnd(conn).label, font));
             r.union(labelBounds(conn, true, targetEnd(conn).label, font));

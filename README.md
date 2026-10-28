@@ -4,9 +4,9 @@ A headless command-line tool that connects to PostgreSQL and renders the schema 
 entity-relationship diagram that looks like the PNG you get from DBeaver's ERD editor
 ("Save as image"), so a CI or deploy job can produce the diagram without a GUI.
 
-It re-implements DBeaver's ERD rendering rules (entity box layout, colours, IDEF1X and
-crow's-foot notation, auto-arrange, shortest-path connection routing) in plain Java2D,
-using the same Draw2D graph layout and router classes DBeaver uses under the hood.
+It re-implements DBeaver's ERD drawing rules (entity box layout, colours, icons, IDEF1X and
+crow's-foot notation) in plain Java2D and lays the tables out with the Eclipse Layout Kernel
+(ELK), which attaches every relation line to its foreign-key column and routes it with right angles.
 
 ```
 java -jar dbeaver-erd.jar --url jdbc:postgresql://db.example.com:5432/app \
@@ -47,16 +47,12 @@ The build uses a Java 21 toolchain; if no JDK is installed, Gradle downloads one
 | `-o`, `--out FILE.png` | | PNG output |
 | `--svg FILE.svg` | | SVG output (`--svg-embed-font` makes it self-contained) |
 | `--scale N` | 1 | integer upscale of the PNG for HiDPI |
-| `--layout elk\|dbeaver` | `elk` | `elk`: layered layout with parents left of children, lines attached to the FK column and the referenced key, right-angle routing; `dbeaver`: DBeaver's own arrangement and diagonal lines |
 | `--notation idef1x\|crowsfoot` | `idef1x` | connection notation |
-| `--fk-side left\|nearest` | `left` | (`--layout dbeaver` only) leave through the table's left edge next to the column name, or through whichever side is nearest |
-| `--anchor column\|both\|entity` | `column` | (`--layout dbeaver` only) `column`: lines leave from the FK column's row and arrive anywhere on the referenced table's border; `both`: they also arrive at the referenced column's row; `entity`: DBeaver's behaviour at both ends |
 | `--attributes all\|keys\|primary\|none` | `all` | which columns to show |
 | `--show types,nullability,comments,fqn,alpha` | | DBeaver's view styles (icons are on; `--hide icons` turns them off) |
 | `--theme light\|dark` | `light` | DBeaver's light or dark ERD colours |
 | `--color "key=#rrggbb;key=r,g,b"` | | colour overrides (see `--help` for the keys) |
 | `--font FAMILY`, `--font-size PT` | bundled Selawik, 9 pt | font; Selawik has Segoe UI's metrics, DBeaver's default UI font |
-| `--aspect W/H` | 1.6 | (`--layout dbeaver` only) viewport aspect ratio used to arrange tables that have no relations into rows |
 
 Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.
 
@@ -67,23 +63,18 @@ Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.
   same icons.
 * **Relations**: IDEF1X by default (dot at the FK end, hollow diamond at the parent end for nullable
   FKs, dotted line for non-identifying relations) or crow's foot with `1`, `1..n`, `0..1` labels.
-* **Layout and routing (default, `--layout elk`)**: the Eclipse Layout Kernel's layered algorithm.
+* **Layout and routing**: the Eclipse Layout Kernel's layered algorithm, not DBeaver's arrangement.
   Parents are placed left of the tables that reference them; every line leaves the child through its
   FK column's row on the left edge and arrives at the parent's right edge next to the referenced key
   (several arrivals are spread 12 px / 24 px apart and ordered to avoid crossings); lines are routed with
   right angles, kept apart from each other and from tables. Self-references loop beside the table.
-* **Layout and routing (`--layout dbeaver`)**: DBeaver's "Arrange all" (Draw2D `DirectedGraphLayout`,
-  same padding, including how tables without relations are packed into rows; `--aspect` stands in for
-  the editor window's aspect ratio) and its shortest-path router with the same diagonal lines, end stubs
-  and clipping. `--anchor` and `--fk-side` tune where those lines attach.
 * **Types**: shown like DBeaver, i.e. PostgreSQL's internal names: `int4`, `varchar(255)`,
   `numeric(10, 2)`, `timestamptz`, `_text` for arrays, `schema.type` for user-defined types.
 
-Differences you may notice: the default layout is ELK's, which is tidier than DBeaver's (use
-`--layout dbeaver` for the familiar arrangement); text is rendered by Java2D instead of GDI/Cairo, so
-label widths can be a pixel off; DBeaver's connection nudging depends on hash-map order, so lines that
-share an entity side may be offset differently; and DBeaver takes a few colours from the OS theme (here
-the Windows defaults are used, override with `--color`).
+Differences you may notice: tables are arranged by ELK rather than DBeaver's "Arrange all", and the
+lines are orthogonal instead of DBeaver's diagonal shortest paths; text is rendered by Java2D instead
+of GDI/Cairo, so label widths can be a pixel off; and DBeaver takes a few colours from the OS theme
+(here the Windows defaults are used, override with `--color`).
 
 ## CI example (GitHub Actions)
 
@@ -97,5 +88,5 @@ the Windows defaults are used, override with `--color`).
 
 ## Licenses
 
-The tool is built on the Eclipse Draw2D graph layout (EPL-2.0), DBeaver's icons (Apache-2.0) and
+The tool is built on the Eclipse Layout Kernel (EPL-2.0), DBeaver's icons (Apache-2.0) and
 the Selawik font (SIL OFL 1.1); see `THIRD_PARTY_NOTICES.md`.

@@ -14,18 +14,10 @@ public final class Fixtures {
     private Fixtures() {
     }
 
-    /** Options for the DBeaver engine tests (the engine the original tests were written against). */
+    /** Default options with the bundled font loaded. */
     public static RenderOptions options() {
         RenderOptions o = new RenderOptions();
         o.fonts = Fonts.load(null, Fonts.DEFAULT_POINT_SIZE);
-        o.layout = RenderOptions.Layout.DBEAVER;
-        return o;
-    }
-
-    public static RenderOptions elkOptions() {
-        RenderOptions o = new RenderOptions();
-        o.fonts = Fonts.load(null, Fonts.DEFAULT_POINT_SIZE);
-        o.layout = RenderOptions.Layout.ELK;
         return o;
     }
 

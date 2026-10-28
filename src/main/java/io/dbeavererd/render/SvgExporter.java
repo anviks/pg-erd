@@ -1,7 +1,7 @@
 package io.dbeavererd.render;
 
 import io.dbeavererd.figure.Icons;
-import org.eclipse.draw2d.geometry.Rectangle;
+import io.dbeavererd.geom.Rect;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -14,7 +14,7 @@ public final class SvgExporter {
     }
 
     public static String render(RenderedDiagram diagram) {
-        Rectangle extent = diagram.extent();
+        Rect extent = diagram.extent();
         if (extent.isEmpty()) {
             throw new IllegalStateException("Can't export empty diagram");
         }

@@ -1,5 +1,6 @@
 package io.dbeavererd.figure;
 
+import io.dbeavererd.geom.Rect;
 import io.dbeavererd.model.Attribute;
 import io.dbeavererd.model.Entity;
 import io.dbeavererd.render.Canvas;
@@ -208,13 +209,13 @@ public final class EntityBox {
      * Full-width rectangle of the row showing {@code attributeName}, or null if that column is not
      * displayed (filtered by visibility or unknown).
      */
-    public org.eclipse.draw2d.geometry.Rectangle rowBounds(String attributeName) {
+    public Rect rowBounds(String attributeName) {
         int yy = y + BORDER + titleH + descH;
         for (Section s : new Section[] {keys, attrs}) {
             int ry = yy + LIST_MARGIN_H;
             for (Row r : s.rows) {
                 if (r.attribute.name().equals(attributeName)) {
-                    return new org.eclipse.draw2d.geometry.Rectangle(x, ry, width, r.itemH);
+                    return new Rect(x, ry, width, r.itemH);
                 }
                 ry += r.itemH;
             }
@@ -222,6 +223,8 @@ public final class EntityBox {
         }
         return null;
     }
+
+    public Rect bounds() { return new Rect(x, y, width, height); }
 
     public int right() { return x + width; }
     public int bottom() { return y + height; }

@@ -1,12 +1,12 @@
 package io.dbeavererd.notation;
 
+import io.dbeavererd.geom.Points;
+import io.dbeavererd.geom.Rect;
 import io.dbeavererd.render.Canvas;
 import io.dbeavererd.route.RoutedConnection;
 import io.dbeavererd.style.RenderOptions;
 import io.dbeavererd.style.Theme;
-import org.eclipse.draw2d.geometry.Point;
-import org.eclipse.draw2d.geometry.PointList;
-import org.eclipse.draw2d.geometry.Rectangle;
+import io.dbeavererd.style.ViewStyle;
 
 import java.awt.Color;
 
@@ -18,14 +18,8 @@ import java.awt.Color;
 public final class Idef1xPainter implements NotationPainter {
     static final int CIRCLE_RADIUS = 4;                    // ERDNotationBase.CIRCLE_RADIUS
     static final float[] DOTTED = {1f, 1f};               // SWT.LINE_DOT at width 1
-    static final PointList RHOMBUS = new PointList();
-
-    static {
-        RHOMBUS.addPoint(0, 0);
-        RHOMBUS.addPoint(-1, 1);
-        RHOMBUS.addPoint(-2, 0);
-        RHOMBUS.addPoint(-1, -1);
-    }
+    static final double RHOMBUS_SCALE = 5;
+    static final Points RHOMBUS = new Points(new int[] {0, -1, -2, -1}, new int[] {0, 1, 0, -1});
 
     @Override
     public void paint(Canvas c, RoutedConnection conn, RenderOptions options) {
@@ -36,40 +30,34 @@ public final class Idef1xPainter implements NotationPainter {
         c.drawPolyline(conn.xs, conn.ys, conn.size(), 1, line, dotted ? DOTTED : null);
 
         // source decoration: CircleDecoration located at point 0, reference point 1
-        Point p0 = new Point(conn.xs[0], conn.ys[0]);
-        Point p1 = new Point(conn.xs[1], conn.ys[1]);
-        Rectangle circle = Decorations.circleBounds(CIRCLE_RADIUS, p0, p1);
-        Decorations.ellipse(c, circle, theme.decorationColor(), line);
+        Decorations.ellipse(c, sourceCircle(conn), theme.decorationColor(), line);
 
         // target decoration: rhombus for optional associations, filled with the diagram background
         if (conn.association.optional()) {
-            int n = conn.size();
-            Point end = new Point(conn.xs[n - 1], conn.ys[n - 1]);
-            Point ref = new Point(conn.xs[n - 2], conn.ys[n - 2]);
-            PointList pts = Decorations.transform(RHOMBUS, 5, end, ref);
-            Decorations.fillAndOutline(c, pts, theme.diagramBackground, line);
+            Decorations.fillAndOutline(c, targetRhombus(conn), theme.diagramBackground, line);
         }
 
-        if (options.has(io.dbeavererd.style.ViewStyle.COMMENTS) && conn.association.comment() != null
-            && !conn.association.comment().isEmpty()) {
+        if (options.has(ViewStyle.COMMENTS) && conn.association.comment() != null && !conn.association.comment().isEmpty()) {
             Labels.paintMidpointLabel(c, conn, conn.association.comment(), options.fonts.regular, theme.attrForeground, options);
         }
     }
 
+    private static Rect sourceCircle(RoutedConnection conn) {
+        return Decorations.circleBounds(CIRCLE_RADIUS, conn.xs[0], conn.ys[0], conn.xs[1], conn.ys[1]);
+    }
+
+    private static Points targetRhombus(RoutedConnection conn) {
+        int n = conn.size();
+        return Decorations.transform(RHOMBUS, RHOMBUS_SCALE, conn.xs[n - 1], conn.ys[n - 1], conn.xs[n - 2], conn.ys[n - 2]);
+    }
+
     @Override
-    public Rectangle bounds(RoutedConnection conn, RenderOptions options) {
-        Rectangle r = null;
-        for (int i = 0; i < conn.size(); i++) {
-            Rectangle p = new Rectangle(conn.xs[i] - 1, conn.ys[i] - 1, 2, 2);
-            r = r == null ? p : r.union(p);
-        }
-        if (r == null) return new Rectangle();
+    public Rect bounds(RoutedConnection conn, RenderOptions options) {
+        Rect r = Labels.polylineBounds(conn);
         if (conn.size() >= 2) {
-            r.union(Decorations.circleBounds(CIRCLE_RADIUS, new Point(conn.xs[0], conn.ys[0]), new Point(conn.xs[1], conn.ys[1])).expand(1, 1));
+            r.union(sourceCircle(conn).expand(1, 1));
             if (conn.association.optional()) {
-                int n = conn.size();
-                r.union(Decorations.bounds(Decorations.transform(RHOMBUS, 5,
-                    new Point(conn.xs[n - 1], conn.ys[n - 1]), new Point(conn.xs[n - 2], conn.ys[n - 2]))));
+                r.union(Decorations.bounds(targetRhombus(conn)));
             }
         }
         return r;

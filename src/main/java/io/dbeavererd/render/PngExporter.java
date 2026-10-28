@@ -1,7 +1,7 @@
 package io.dbeavererd.render;
 
 import io.dbeavererd.figure.Icons;
-import org.eclipse.draw2d.geometry.Rectangle;
+import io.dbeavererd.geom.Rect;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
@@ -16,7 +16,7 @@ public final class PngExporter {
     }
 
     public static BufferedImage render(RenderedDiagram diagram) {
-        Rectangle extent = diagram.extent();
+        Rect extent = diagram.extent();
         if (extent.isEmpty()) {
             throw new IllegalStateException("Can't export empty diagram");
         }

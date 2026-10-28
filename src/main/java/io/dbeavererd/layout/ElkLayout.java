@@ -22,7 +22,7 @@ import org.eclipse.elk.graph.ElkEdgeSection;
 import org.eclipse.elk.graph.ElkNode;
 import org.eclipse.elk.graph.ElkPort;
 import org.eclipse.elk.graph.util.ElkGraphUtil;
-import org.eclipse.draw2d.geometry.Rectangle;
+import io.dbeavererd.geom.Rect;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -216,10 +216,10 @@ public final class ElkLayout {
             int savedY = box.y;
             box.x = 0;
             box.y = 0;
-            Rectangle r = box.rowBounds(columns.get(0));
+            Rect r = box.rowBounds(columns.get(0));
             box.x = savedX;
             box.y = savedY;
-            if (r != null) return r.getCenter().y;
+            if (r != null) return r.centerY();
         }
         return box.height / 2;
     }
