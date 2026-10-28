@@ -25,12 +25,12 @@ public final class Idef1xPainter implements NotationPainter {
     public void paint(Canvas c, RoutedConnection conn, RenderOptions options) {
         if (conn.size() < 2) return;
         Theme theme = options.theme;
-        Color line = theme.linesForeground;
+        Color line = options.look.lineColor(conn.target.background, theme);
         boolean dotted = !conn.association.identifying();
         c.drawPolyline(conn.xs, conn.ys, conn.size(), 1, line, dotted ? DOTTED : null);
 
         // source decoration: CircleDecoration located at point 0, reference point 1
-        Decorations.ellipse(c, sourceCircle(conn), theme.decorationColor(), line);
+        Decorations.ellipse(c, sourceCircle(conn), options.look.decorationColor(line, theme), line);
 
         // target decoration: rhombus for optional associations, filled with the diagram background
         if (conn.association.optional()) {

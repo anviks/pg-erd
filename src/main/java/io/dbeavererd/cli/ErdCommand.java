@@ -8,6 +8,7 @@ import io.dbeavererd.render.RenderedDiagram;
 import io.dbeavererd.render.SvgExporter;
 import io.dbeavererd.style.AttributeVisibility;
 import io.dbeavererd.style.Fonts;
+import io.dbeavererd.style.Look;
 import io.dbeavererd.style.Notation;
 import io.dbeavererd.style.RenderOptions;
 import io.dbeavererd.style.Theme;
@@ -72,11 +73,13 @@ public final class ErdCommand implements Callable<Integer> {
     @Option(names = "--hide", split = ",", paramLabel = "STYLE", description = "View styles to turn off, e.g. icons.")
     List<String> hide = new ArrayList<>();
 
-    @Option(names = "--theme", defaultValue = "light", paramLabel = "light|dark", description = "Colour theme (default: ${DEFAULT-VALUE}).")
+    @Option(names = "--look", defaultValue = "dbeaver", paramLabel = "dbeaver|clean|paper|pastel", description = "Visual style: dbeaver = DBeaver's ERD editor (default); clean = rounded cards with a solid header bar; paper = black-and-white, monospaced, print-friendly; pastel = a pastel header per table, lines coloured after the table they point to.")
+    String look;
+    @Option(names = "--theme", defaultValue = "light", paramLabel = "light|dark", description = "Light or dark variant of the look (default: ${DEFAULT-VALUE}).")
     String theme;
     @Option(names = "--color", split = ";", paramLabel = "KEY=VALUE", description = "Colour overrides separated by ';', values as #rrggbb or r,g,b, e.g. \"lines=#008fcf;entity-background=255,255,225\". Keys: background, entity-background, entity-primary-background, entity-association-background, entity-name-foreground, lines, attr-background, attr-foreground, header-1..7.")
     List<String> colors = new ArrayList<>();
-    @Option(names = "--font", description = "Installed font family to use instead of the bundled Selawik (Segoe UI metrics).")
+    @Option(names = "--font", description = "Installed font family to use instead of the look's default (bundled Selawik with Segoe UI metrics; Monospaced for --look paper).")
     String font;
     @Option(names = "--font-size", defaultValue = "9", description = "Font size in points (default: ${DEFAULT-VALUE}, DBeaver's default).")
     float fontSize;
@@ -162,6 +165,7 @@ public final class ErdCommand implements Callable<Integer> {
 
     RenderOptions buildOptions() {
         RenderOptions o = new RenderOptions();
+        o.look = Look.parse(look);
         o.notation = Notation.parse(notation);
         o.visibility = AttributeVisibility.parse(attributes);
         EnumSet<ViewStyle> styles = EnumSet.of(ViewStyle.ICONS);
@@ -169,8 +173,8 @@ public final class ErdCommand implements Callable<Integer> {
         for (String s : hide) styles.remove(ViewStyle.parse(s));
         o.styles = styles;
         o.theme = switch (theme.toLowerCase()) {
-            case "light" -> Theme.light();
-            case "dark" -> Theme.dark();
+            case "light" -> o.look.theme(false);
+            case "dark" -> o.look.theme(true);
             default -> throw new IllegalArgumentException("unknown theme: " + theme);
         };
         for (String kv : colors) {
@@ -178,7 +182,7 @@ public final class ErdCommand implements Callable<Integer> {
             if (eq < 0) throw new IllegalArgumentException("colour override must be KEY=VALUE: " + kv);
             o.theme.set(kv.substring(0, eq).trim(), Theme.parseColor(kv.substring(eq + 1)));
         }
-        o.fonts = Fonts.load(font, fontSize);
+        o.fonts = Fonts.load(font != null ? font : o.look.defaultFontFamily, fontSize);
         if (scale < 1 || scale > 8) throw new IllegalArgumentException("--scale must be between 1 and 8");
         o.scale = scale;
         o.embedSvgFont = embedFont;

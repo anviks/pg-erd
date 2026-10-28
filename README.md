@@ -50,11 +50,32 @@ The build uses a Java 21 toolchain; if no JDK is installed, Gradle downloads one
 | `--notation idef1x\|crowsfoot` | `idef1x` | connection notation |
 | `--attributes all\|keys\|primary\|none` | `all` | which columns to show |
 | `--show types,nullability,comments,fqn,alpha` | | DBeaver's view styles (icons are on; `--hide icons` turns them off) |
-| `--theme light\|dark` | `light` | DBeaver's light or dark ERD colours |
+| `--look dbeaver\|clean\|paper\|pastel` | `dbeaver` | visual style, see [Looks](#looks) |
+| `--theme light\|dark` | `light` | light or dark variant of the look |
 | `--color "key=#rrggbb;key=r,g,b"` | | colour overrides (see `--help` for the keys) |
 | `--font FAMILY`, `--font-size PT` | bundled Selawik, 9 pt | font; Selawik has Segoe UI's metrics, DBeaver's default UI font |
 
 Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.
+
+## Looks
+
+`--look` picks the visual style; `--theme dark` gives each one a dark variant and `--color`
+still overrides single colours (`border`, `separator`, `type-foreground`, `header-foreground`
+are the extra keys the non-DBeaver looks use).
+
+| | |
+|---|---|
+| `dbeaver` (default): DBeaver's ERD editor, yellow headers, blue frames | `clean`: rounded cards, slate header bar, thin grey frame |
+| ![dbeaver](docs/looks/dbeaver.png) | ![clean](docs/looks/clean.png) |
+| `paper`: black and white, monospaced, prints well | `pastel`: a pastel header per table (by name), lines in the colour of the table they point to |
+| ![paper](docs/looks/paper.png) | ![pastel](docs/looks/pastel.png) |
+
+Dark variants of the same looks (`--theme dark`):
+
+| | |
+|---|---|
+| ![dbeaver dark](docs/looks/dbeaver-dark.png) | ![clean dark](docs/looks/clean-dark.png) |
+| ![paper dark](docs/looks/paper-dark.png) | ![pastel dark](docs/looks/pastel-dark.png) |
 
 ## How faithful is it?
 

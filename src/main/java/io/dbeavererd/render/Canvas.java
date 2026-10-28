@@ -14,6 +14,12 @@ public interface Canvas {
     /** Rectangle outline from (x,y) to (x+w, y+h), stroke centred on the edges (SWT drawRectangle). */
     void drawRect(int x, int y, int w, int h, int lineWidth, Color c);
 
+    /** Filled rectangle with rounded corners of the given radius. */
+    void fillRoundRect(int x, int y, int w, int h, int radius, Color c);
+
+    /** Like {@link #drawRect} with rounded corners. */
+    void drawRoundRect(int x, int y, int w, int h, int radius, int lineWidth, Color c);
+
     /** @param dash dash pattern in pixels, or null for a solid line */
     void drawPolyline(int[] xs, int[] ys, int n, int lineWidth, Color c, float[] dash);
 

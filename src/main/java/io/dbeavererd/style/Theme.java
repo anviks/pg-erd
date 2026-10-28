@@ -26,6 +26,21 @@ public final class Theme {
     /** Border colours for the 2nd..8th data source (unused: a CLI diagram has one data source). */
     public Color[] borderColors;
     public boolean dark;
+    /** Frame colour; null = the line colour (DBeaver). */
+    public Color borderColor;
+    /** Colour of the type / NOT NULL column; null = the attribute colour. */
+    public Color typeForeground;
+    /** Colour of separator lines inside a table; null = the frame colour. */
+    public Color separatorColor;
+    /** Title colour; null = black or white, whichever contrasts with the header. */
+    public Color headerForeground;
+    /** When set, a table's header colour is picked from this palette by its name (pastel look). */
+    public Color[] tablePalette;
+
+    public Color border() { return borderColor != null ? borderColor : linesForeground; }
+    public Color typeForeground() { return typeForeground != null ? typeForeground : attrForeground; }
+    public Color separator() { return separatorColor != null ? separatorColor : border(); }
+    public Color headerForeground(Color header) { return headerForeground != null ? headerForeground : contrast(header); }
 
     public static Theme light() {
         Theme t = new Theme();
@@ -67,6 +82,71 @@ public final class Theme {
         return t;
     }
 
+    // ---- looks other than DBeaver's
+
+    private static Theme base(boolean dark, Color background, Color header, Color headerFg, Color body, Color text,
+                              Color muted, Color border, Color lines) {
+        Theme t = dark ? dark() : light();
+        t.diagramBackground = background;
+        t.entityRegularBackground = header;
+        t.entityPrimaryBackground = dark ? new Color(0x9a3412) : new Color(0xf97316);
+        t.entityAssociationBackground = body;
+        t.entityNameForeground = headerFg;
+        t.headerForeground = headerFg;
+        t.linesForeground = lines;
+        t.borderColor = border;
+        t.separatorColor = border;
+        t.attrBackground = body;
+        t.attrForeground = text;
+        t.typeForeground = muted;
+        t.noteBackground = body;
+        t.noteForeground = text;
+        t.headerColors = new Color[] {header, header, header, header, header, header, header};
+        return t;
+    }
+
+    public static Theme cleanLight() {
+        return base(false, Color.WHITE, new Color(0x475569), Color.WHITE, Color.WHITE, new Color(0x1e293b),
+            new Color(0x64748b), new Color(0xcbd5e1), new Color(0x64748b));
+    }
+
+    public static Theme cleanDark() {
+        return base(true, new Color(0x0f172a), new Color(0x334155), new Color(0xf1f5f9), new Color(0x1e293b),
+            new Color(0xe2e8f0), new Color(0x94a3b8), new Color(0x475569), new Color(0x94a3b8));
+    }
+
+    public static Theme paperLight() {
+        return base(false, Color.WHITE, Color.WHITE, Color.BLACK, Color.WHITE, Color.BLACK,
+            new Color(0x555555), Color.BLACK, Color.BLACK);
+    }
+
+    public static Theme paperDark() {
+        Color ink = new Color(0xe8e8e8);
+        Color paper = new Color(0x1c1c1c);
+        return base(true, paper, paper, ink, paper, ink, new Color(0xa0a0a0), ink, ink);
+    }
+
+    private static final Color[] PASTELS = {
+        new Color(0xffadad), new Color(0xffd6a5), new Color(0xfdffb6), new Color(0xcaffbf),
+        new Color(0x9bf6ff), new Color(0xa0c4ff), new Color(0xbdb2ff), new Color(0xffc6ff)
+    };
+
+    public static Theme pastelLight() {
+        Theme t = base(false, Color.WHITE, PASTELS[5], new Color(0x1f2937), Color.WHITE, new Color(0x1f2937),
+            new Color(0x6b7280), new Color(0x9ca3af), new Color(0x6b7280));
+        t.tablePalette = PASTELS.clone();
+        return t;
+    }
+
+    public static Theme pastelDark() {
+        Color[] muted = new Color[PASTELS.length];
+        for (int i = 0; i < PASTELS.length; i++) muted[i] = blend(PASTELS[i], new Color(0x1f2937), 45);
+        Theme t = base(true, new Color(0x111827), muted[5], new Color(0xf9fafb), new Color(0x1f2937),
+            new Color(0xe5e7eb), new Color(0x9ca3af), new Color(0x4b5563), new Color(0x9ca3af));
+        t.tablePalette = muted;
+        return t;
+    }
+
     /** Colour keys accepted by {@code --color key=r,g,b}. */
     public Map<String, Color> asMap() {
         Map<String, Color> m = new LinkedHashMap<>();
@@ -80,6 +160,9 @@ public final class Theme {
         m.put("attr-foreground", attrForeground);
         m.put("note-background", noteBackground);
         m.put("note-foreground", noteForeground);
+        m.put("border", border());
+        m.put("type-foreground", typeForeground());
+        m.put("separator", separator());
         for (int i = 0; i < headerColors.length; i++) m.put("header-" + (i + 1), headerColors[i]);
         return m;
     }
@@ -96,6 +179,10 @@ public final class Theme {
             case "attr-foreground" -> attrForeground = c;
             case "note-background" -> noteBackground = c;
             case "note-foreground" -> noteForeground = c;
+            case "border" -> borderColor = c;
+            case "type-foreground" -> typeForeground = c;
+            case "separator" -> separatorColor = c;
+            case "header-foreground" -> headerForeground = c;
             default -> {
                 if (key.startsWith("header-")) {
                     int i = Integer.parseInt(key.substring("header-".length())) - 1;

@@ -9,6 +9,7 @@ import java.awt.Graphics2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 
 /** Paints onto a Graphics2D (a BufferedImage for PNG output). */
 public final class Java2DCanvas implements Canvas {
@@ -48,6 +49,20 @@ public final class Java2DCanvas implements Canvas {
         stroke(lineWidth, null);
         double o = off(lineWidth);
         g.draw(new Rectangle2D.Double(x + o, y + o, w, h));
+    }
+
+    @Override
+    public void fillRoundRect(int x, int y, int w, int h, int radius, Color c) {
+        g.setColor(c);
+        g.fill(new RoundRectangle2D.Double(x, y, w, h, radius * 2, radius * 2));
+    }
+
+    @Override
+    public void drawRoundRect(int x, int y, int w, int h, int radius, int lineWidth, Color c) {
+        g.setColor(c);
+        stroke(lineWidth, null);
+        double o = off(lineWidth);
+        g.draw(new RoundRectangle2D.Double(x + o, y + o, w, h, radius * 2, radius * 2));
     }
 
     @Override

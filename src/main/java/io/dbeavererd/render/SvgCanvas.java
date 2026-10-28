@@ -70,6 +70,21 @@ public final class SvgCanvas implements Canvas {
             .append("\" fill=\"none\" stroke=\"").append(hex(c)).append("\" stroke-width=\"").append(lineWidth).append("\"/>\n");
     }
 
+    @Override
+    public void fillRoundRect(int x, int y, int w, int h, int radius, Color c) {
+        body.append("<rect x=\"").append(x + offsetX).append("\" y=\"").append(y + offsetY)
+            .append("\" width=\"").append(w).append("\" height=\"").append(h)
+            .append("\" rx=\"").append(radius).append("\" fill=\"").append(hex(c)).append("\"/>\n");
+    }
+
+    @Override
+    public void drawRoundRect(int x, int y, int w, int h, int radius, int lineWidth, Color c) {
+        double o = off(lineWidth);
+        body.append("<rect x=\"").append(num(x + offsetX + o)).append("\" y=\"").append(num(y + offsetY + o))
+            .append("\" width=\"").append(w).append("\" height=\"").append(h).append("\" rx=\"").append(radius)
+            .append("\" fill=\"none\" stroke=\"").append(hex(c)).append("\" stroke-width=\"").append(lineWidth).append("\"/>\n");
+    }
+
     private String points(int[] xs, int[] ys, int n, double o) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < n; i++) {
@@ -200,7 +215,12 @@ public final class SvgCanvas implements Canvas {
 
     private String fontFamilyList() {
         if (fonts.bundled) return "Selawik, 'Segoe UI', 'Open Sans', sans-serif";
-        return "'" + fonts.family + "', 'Segoe UI', sans-serif";
+        return switch (fonts.family) {
+            case "Monospaced" -> "'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace";
+            case "Serif" -> "serif";
+            case "SansSerif", "Dialog" -> "sans-serif";
+            default -> "'" + fonts.family + "', 'Segoe UI', sans-serif";
+        };
     }
 
     static byte[] pngBytes(java.awt.image.BufferedImage img) throws IOException {

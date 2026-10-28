@@ -5,6 +5,7 @@ import java.util.Set;
 
 /** Everything that influences how a diagram is drawn. Defaults mirror DBeaver's preferences. */
 public final class RenderOptions {
+    public Look look = Look.dbeaver();
     public Notation notation = Notation.IDEF1X;
     public Set<ViewStyle> styles = EnumSet.of(ViewStyle.ICONS);
     public AttributeVisibility visibility = AttributeVisibility.ALL;

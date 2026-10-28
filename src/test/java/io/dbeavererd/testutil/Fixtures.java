@@ -5,6 +5,7 @@ import io.dbeavererd.model.Attribute;
 import io.dbeavererd.model.Diagram;
 import io.dbeavererd.model.Entity;
 import io.dbeavererd.style.Fonts;
+import io.dbeavererd.style.Look;
 import io.dbeavererd.style.RenderOptions;
 
 import java.util.List;
@@ -18,6 +19,15 @@ public final class Fixtures {
     public static RenderOptions options() {
         RenderOptions o = new RenderOptions();
         o.fonts = Fonts.load(null, Fonts.DEFAULT_POINT_SIZE);
+        return o;
+    }
+
+    /** Options for a look in its light or dark variant, with the look's default font. */
+    public static RenderOptions options(Look look, boolean dark) {
+        RenderOptions o = new RenderOptions();
+        o.look = look;
+        o.theme = look.theme(dark);
+        o.fonts = Fonts.load(look.defaultFontFamily, Fonts.DEFAULT_POINT_SIZE);
         return o;
     }
 

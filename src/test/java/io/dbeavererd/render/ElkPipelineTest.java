@@ -3,6 +3,7 @@ package io.dbeavererd.render;
 import io.dbeavererd.figure.EntityBox;
 import io.dbeavererd.model.Diagram;
 import io.dbeavererd.route.RoutedConnection;
+import io.dbeavererd.style.Look;
 import io.dbeavererd.style.Notation;
 import io.dbeavererd.style.RenderOptions;
 import io.dbeavererd.style.Theme;
@@ -68,6 +69,25 @@ class ElkPipelineTest {
         RenderedDiagram d = Pipeline.render(Fixtures.shop(), o);
         check(d, "dark");
         PngExporter.write(d, Path.of("build/test-output/elk-shop-crowsfoot-dark.png"));
+    }
+
+    @Test
+    void everyLookRendersInBothThemes() throws IOException {
+        for (String name : Look.NAMES) {
+            for (boolean dark : new boolean[] {false, true}) {
+                for (Notation notation : Notation.values()) {
+                    Look look = Look.parse(name);
+                    RenderOptions o = Fixtures.options(look, dark);
+                    o.notation = notation;
+                    o.styles = EnumSet.of(ViewStyle.ICONS, ViewStyle.TYPES, ViewStyle.NULLABILITY);
+                    RenderedDiagram d = Pipeline.render(Fixtures.shop(), o);
+                    check(d, name + (dark ? "-dark" : "") + "-" + notation);
+                    String file = "look-" + name + (dark ? "-dark" : "") + "-" + notation.name().toLowerCase();
+                    PngExporter.write(d, Path.of("build/test-output/" + file + ".png"));
+                    Files.writeString(Path.of("build/test-output/" + file + ".svg"), SvgExporter.render(d));
+                }
+            }
+        }
     }
 
     @Test

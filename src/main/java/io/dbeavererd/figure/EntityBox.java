@@ -6,6 +6,7 @@ import io.dbeavererd.model.Entity;
 import io.dbeavererd.render.Canvas;
 import io.dbeavererd.render.TextMeasurer;
 import io.dbeavererd.style.AttributeVisibility;
+import io.dbeavererd.style.Look;
 import io.dbeavererd.style.RenderOptions;
 import io.dbeavererd.style.Theme;
 import io.dbeavererd.style.ViewStyle;
@@ -26,17 +27,12 @@ import java.util.List;
  *          right panel   Label(type [NOT NULL]) aligned END / BEGINNING
  *   attrs  AttributeListFigure   same as keys
  * </pre>
- * All numbers are from org.jkiss.dbeaver.ui.editors.erd.figures.*.
+ * All numbers are from org.jkiss.dbeaver.ui.editors.erd.figures.* and are the defaults of
+ * {@link Look#dbeaver()}; other looks change the paddings, frame and separators.
  */
 public final class EntityBox {
-    public static final int BORDER = 2;        // ERDUIConstants.DEFAULT_ENTITY_BORDER_WIDTH
-    static final int TITLE_MARGIN = 3;         // nameLabel.setBorder(new MarginBorder(3))
-    static final int LIST_MARGIN_W = 5;        // AttributeListFigure GridLayout marginWidth
-    static final int LIST_MARGIN_H = 3;        // AttributeListFigure GridLayout marginHeight
-    static final int LIST_INSET_SIDE = -2;     // ColumnFigureBorder insets (0,-2,-2,-2)
-    static final int LIST_INSET_BOTTOM = -2;
-    static final int ITEM_MARGIN_W = 5;        // AttributeItemFigure GridLayout marginWidth
-    static final int ITEM_MARGIN_H = 2;        // AttributeItemFigure GridLayout marginHeight
+    /** DBeaver's frame width (ERDUIConstants.DEFAULT_ENTITY_BORDER_WIDTH). */
+    public static final int BORDER = 2;
     static final int ICON_GAP = 3;             // Draw2D Label iconTextGap
     static final int ICON = Icons.SIZE;
 
@@ -55,7 +51,7 @@ public final class EntityBox {
         public final int rightW;
         public final int textH;
 
-        Row(Attribute attribute, String label, String right, Font font, boolean icon, TextMeasurer m) {
+        Row(Attribute attribute, String label, String right, Font font, boolean icon, TextMeasurer m, Look look) {
             this.attribute = attribute;
             this.label = label;
             this.right = right;
@@ -66,8 +62,8 @@ public final class EntityBox {
             int gap = icon && !label.isEmpty() ? ICON_GAP : 0;
             this.labelW = (icon ? ICON : 0) + gap + labelTextW;
             this.labelH = Math.max(icon ? ICON : 0, textH);
-            this.itemW = 2 * ITEM_MARGIN_W + labelW;
-            this.itemH = 2 * ITEM_MARGIN_H + labelH;
+            this.itemW = 2 * look.itemMarginW + labelW;
+            this.itemH = 2 * look.itemMarginH + labelH;
             this.rightW = m.width(right, font);
         }
     }
@@ -80,7 +76,7 @@ public final class EntityBox {
         public final int prefW;
         public final int prefH;
 
-        Section(List<Row> rows) {
+        Section(List<Row> rows, Look look) {
             this.rows = rows;
             int c1 = 0;
             int c2 = 0;
@@ -93,8 +89,9 @@ public final class EntityBox {
             this.col1W = c1;
             this.col2W = c2;
             // GridLayout preferred size plus the (negative) border insets
-            this.prefW = 2 * LIST_MARGIN_W + c1 + c2 + 2 * LIST_INSET_SIDE;
-            this.prefH = 2 * LIST_MARGIN_H + rowsH + LIST_INSET_BOTTOM;
+            this.prefW = rows.isEmpty() && look.sectionTopLine == 0 ? 0 : 2 * look.listMarginW + c1 + c2 + 2 * look.listInsetSide + look.rightPad;
+            // DBeaver keeps an empty key section (4 px with its top line); other looks drop it
+            this.prefH = rows.isEmpty() && look.sectionTopLine == 0 ? 0 : 2 * look.listMarginH + rowsH + look.listInsetBottom;
         }
     }
 
@@ -115,6 +112,8 @@ public final class EntityBox {
     public final Color borderColor;
     public final Color titleForeground;
     private final RenderOptions options;
+    private final Look look;
+    private final int border;
     private final Font titleFont;
     private final Font descFont;
 
@@ -125,16 +124,18 @@ public final class EntityBox {
     public EntityBox(Entity entity, RenderOptions options, TextMeasurer m) {
         this.entity = entity;
         this.options = options;
+        this.look = options.look;
+        this.border = look.borderWidth;
         Theme theme = options.theme;
-        titleFont = options.fonts.regular;
+        titleFont = look.titleBold ? options.fonts.bold : options.fonts.regular;
         descFont = options.fonts.regular;
 
         this.title = options.has(ViewStyle.ENTITY_FQN) ? entity.fullName() : entity.name();
         this.titleTextW = m.width(title, titleFont);
         this.titleTextH = m.height(titleFont);
-        this.titleLabelH = Math.max(ICON, titleTextH);
-        this.titleH = titleLabelH + 2 * TITLE_MARGIN;
-        int titlePrefW = ICON + ICON_GAP + titleTextW + 2 * TITLE_MARGIN;
+        this.titleLabelH = look.titleIcon ? Math.max(ICON, titleTextH) : titleTextH;
+        this.titleH = titleLabelH + 2 * look.titleMarginV;
+        int titlePrefW = titleContentW() + 2 * look.titleMarginH;
 
         String desc = null;
         if (options.has(ViewStyle.COMMENTS) && entity.comment() != null && !entity.comment().isEmpty()) {
@@ -148,24 +149,30 @@ public final class EntityBox {
         List<Row> attrRows = new ArrayList<>();
         for (Attribute a : visibleAttributes(entity, options)) {
             Font f = a.inPrimaryKey() ? options.fonts.bold : options.fonts.regular;
-            Row r = new Row(a, attributeLabel(a, options), rightText(a, options), f, options.has(ViewStyle.ICONS), m);
+            Row r = new Row(a, attributeLabel(a, options), rightText(a, options), f, options.has(ViewStyle.ICONS), m, look);
             (a.inPrimaryKey() ? keyRows : attrRows).add(r);
         }
-        this.keys = new Section(keyRows);
-        this.attrs = new Section(attrRows);
+        this.keys = new Section(keyRows, look);
+        this.attrs = new Section(attrRows, look);
 
         int w = Math.max(Math.max(titlePrefW, descW), Math.max(keys.prefW, attrs.prefW));
-        this.width = w + 2 * BORDER;
-        this.height = titleH + descH + keys.prefH + attrs.prefH + 2 * BORDER;
+        this.width = w + 2 * border;
+        this.height = titleH + descH + keys.prefH + attrs.prefH + separatorsH() + 2 * border;
 
         // EntityFigure.refreshColors / getBorderColor (single data source -> index 0 -> lines colour)
-        if (entity.isPrimary()) {
-            background = theme.entityPrimaryBackground;
-        } else {
-            background = theme.headerColor(entity.containerIndex());
-        }
-        borderColor = theme.linesForeground;
-        titleForeground = theme.contrast(background);
+        background = look.headerColor(entity, theme);
+        borderColor = look.linesByParent ? look.lineColor(background, theme) : theme.border();
+        titleForeground = theme.headerForeground(background);
+    }
+
+    private int titleContentW() {
+        return (look.titleIcon ? ICON + ICON_GAP : 0) + titleTextW;
+    }
+
+    /** Height taken by separator lines: one under the header, one more between the key and attribute rows. */
+    private int separatorsH() {
+        if (look.separator == 0) return 0;
+        return look.separator + (keys.rows.isEmpty() || attrs.rows.isEmpty() ? 0 : look.separator);
     }
 
     /** ERDContentProviderDefault.fillEntityFromObject: visibility filter and optional alphabetical sort. */
@@ -210,9 +217,9 @@ public final class EntityBox {
      * displayed (filtered by visibility or unknown).
      */
     public Rect rowBounds(String attributeName) {
-        int yy = y + BORDER + titleH + descH;
+        int yy = y + border + titleH + descH + look.separator;
         for (Section s : new Section[] {keys, attrs}) {
-            int ry = yy + LIST_MARGIN_H;
+            int ry = yy + look.listMarginH;
             for (Row r : s.rows) {
                 if (r.attribute.name().equals(attributeName)) {
                     return new Rect(x, ry, width, r.itemH);
@@ -220,6 +227,7 @@ public final class EntityBox {
                 ry += r.itemH;
             }
             yy += s.prefH;
+            if (!s.rows.isEmpty() && s == keys && !attrs.rows.isEmpty()) yy += look.separator;
         }
         return null;
     }
@@ -233,23 +241,29 @@ public final class EntityBox {
 
     public void paint(Canvas c) {
         Theme theme = options.theme;
-        int cx = x + BORDER;                 // client area (inside the LineBorder)
-        int cy = y + BORDER;
-        int cw = width - 2 * BORDER;
+        int cx = x + border;                 // client area (inside the frame)
+        int cy = y + border;
+        int cw = width - 2 * border;
+        int radius = look.cornerRadius;
 
-        // EntityFigure is opaque: header colour under everything
-        c.fillRect(x, y, width, height, background);
+        // the whole figure is opaque in the header colour; the rows area is painted over it
+        if (radius > 0) {
+            c.fillRoundRect(x, y, width, height, radius, background);
+        } else {
+            c.fillRect(x, y, width, height, background);
+        }
 
-        // title label: MarginBorder(3), content centred horizontally (Label alignment CENTER)
-        int labelX = cx + TITLE_MARGIN;
-        int labelY = cy + TITLE_MARGIN;
-        int labelW = cw - 2 * TITLE_MARGIN;
-        int prefW = ICON + ICON_GAP + titleTextW;
-        int offset = (labelW - prefW) / 2;
-        int iconX = labelX + offset;
-        int iconY = labelY + (titleLabelH - ICON) / 2;
-        c.drawIcon(entity.isView() ? Icons.VIEW : Icons.TABLE, false, iconX, iconY);
-        c.drawText(title, iconX + ICON + ICON_GAP, labelY + (titleLabelH - titleTextH) / 2, titleFont, titleForeground);
+        // title label: content centred (DBeaver) or left-aligned
+        int labelX = cx + look.titleMarginH;
+        int labelY = cy + look.titleMarginV;
+        int labelW = cw - 2 * look.titleMarginH;
+        int offset = look.titleCentered ? (labelW - titleContentW()) / 2 : 0;
+        int tx = labelX + offset;
+        if (look.titleIcon) {
+            c.drawIcon(entity.isView() ? Icons.VIEW : Icons.TABLE, false, tx, labelY + (titleLabelH - ICON) / 2);
+            tx += ICON + ICON_GAP;
+        }
+        c.drawText(title, tx, labelY + (titleLabelH - titleTextH) / 2, titleFont, titleForeground);
         int yy = cy + titleH;
 
         if (description != null) {
@@ -257,30 +271,64 @@ public final class EntityBox {
             yy += descH;
         }
 
+        // rows area: square at the top, following the frame's rounding at the bottom
+        int bodyTop = yy;
+        int bodyH = y + height - bodyTop;
+        if (bodyH > 0) {
+            if (radius > 0) {
+                int r = Math.min(radius, bodyH / 2);
+                c.fillRect(x, bodyTop, width, bodyH - r, theme.attrBackground);
+                c.fillRoundRect(x, y + height - 2 * r, width, 2 * r, r, theme.attrBackground);
+            } else {
+                c.fillRect(x, bodyTop, width, bodyH, theme.attrBackground);
+            }
+        }
+        if (look.separator > 0) {
+            separator(c, yy, theme);
+            yy += look.separator;
+        }
+
         yy = paintSection(c, keys, cx, yy, cw, theme);
+        if (look.separator > 0 && !keys.rows.isEmpty() && !attrs.rows.isEmpty()) {
+            separator(c, yy, theme);
+            yy += look.separator;
+        }
         paintSection(c, attrs, cx, yy, cw, theme);
 
-        // LineBorder(2): even width -> shrink by 1 and stroke the outline
-        c.drawRect(x + 1, y + 1, width - 2, height - 2, BORDER, borderColor);
+        // frame: a stroke of width w is inset by w/2 so it stays inside the figure (Draw2D LineBorder)
+        int in = border / 2;
+        int shrink = 2 * in + border % 2;
+        if (radius > 0) {
+            c.drawRoundRect(x + in, y + in, width - shrink, height - shrink, Math.max(0, radius - in), border, borderColor);
+        } else {
+            c.drawRect(x + in, y + in, width - shrink, height - shrink, border, borderColor);
+        }
+    }
+
+    private void separator(Canvas c, int yy, Theme theme) {
+        int half = look.separator / 2;
+        c.drawPolyline(new int[] {x, x + width}, new int[] {yy + half, yy + half}, 2, look.separator, theme.separator(), null);
     }
 
     private int paintSection(Canvas c, Section s, int listX, int listY, int listW, Theme theme) {
         int listH = s.prefH;
-        c.fillRect(listX, listY, listW, listH, theme.attrBackground);
-        // ColumnFigureBorder: 2px line across the top in the border colour
-        c.drawPolyline(new int[] {listX, listX + listW}, new int[] {listY, listY}, 2, 2, borderColor, null);
+        if (listH == 0) return listY;
+        if (look.sectionTopLine > 0) {
+            // ColumnFigureBorder: 2px line across the top in the border colour
+            c.drawPolyline(new int[] {listX, listX + listW}, new int[] {listY, listY}, 2, look.sectionTopLine, borderColor, null);
+        }
 
         // client area is the bounds expanded by the negative insets, then the GridLayout margins
-        int x0 = listX + LIST_INSET_SIDE + LIST_MARGIN_W;
-        int y0 = listY + LIST_MARGIN_H;
-        int available = listW - 2 * LIST_INSET_SIDE - 2 * LIST_MARGIN_W;
-        int col1 = available - s.col2W;   // column 1 grabs the excess
+        int x0 = listX + look.listInsetSide + look.listMarginW;
+        int y0 = listY + look.listMarginH;
+        int available = listW - 2 * look.listInsetSide - 2 * look.listMarginW;
+        int col1 = available - s.col2W - look.rightPad;   // column 1 grabs the excess
         int rightEdge = x0 + col1 + s.col2W;
 
         int ry = y0;
         for (Row r : s.rows) {
-            int lx = x0 + ITEM_MARGIN_W;
-            int ly = ry + ITEM_MARGIN_H;
+            int lx = x0 + look.itemMarginW;
+            int ly = ry + look.itemMarginH;
             int tx = lx;
             if (r.icon) {
                 c.drawIcon(r.attribute.iconId(), r.attribute.inPrimaryKey(), lx, ly + (r.labelH - ICON) / 2);
@@ -288,8 +336,9 @@ public final class EntityBox {
             }
             c.drawText(r.label, tx, ly + (r.labelH - r.textH) / 2, r.font, theme.attrForeground);
             if (!r.right.isEmpty()) {
-                // right panel: HORIZONTAL_ALIGN_END | VERTICAL_ALIGN_BEGINNING, preferred size
-                c.drawText(r.right, rightEdge - r.rightW, ry, r.font, theme.attrForeground);
+                // right panel: HORIZONTAL_ALIGN_END, at the row top (DBeaver) or vertically centred
+                int ty = look.rightTextTop ? ry : ly + (r.labelH - r.textH) / 2;
+                c.drawText(r.right, rightEdge - r.rightW, ty, r.font, theme.typeForeground());
             }
             ry += r.itemH;
         }

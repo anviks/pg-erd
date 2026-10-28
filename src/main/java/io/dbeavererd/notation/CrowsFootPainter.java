@@ -57,16 +57,16 @@ public final class CrowsFootPainter implements NotationPainter {
     public void paint(Canvas c, RoutedConnection conn, RenderOptions options) {
         if (conn.size() < 2) return;
         Theme theme = options.theme;
-        Color line = theme.linesForeground;
+        Color line = options.look.lineColor(conn.target.background, theme);
         c.drawPolyline(conn.xs, conn.ys, conn.size(), 1, line, null);
 
         End src = sourceEnd(conn);
         End trg = targetEnd(conn);
-        paintDecoration(c, decoration(conn, false), src.type, theme);
-        paintDecoration(c, decoration(conn, true), trg.type, theme);
+        paintDecoration(c, decoration(conn, false), src.type, line, theme.diagramBackground);
+        paintDecoration(c, decoration(conn, true), trg.type, line, theme.diagramBackground);
 
         Font font = options.fonts.notation;
-        Color labelColor = theme.decorationColor();
+        Color labelColor = options.look.decorationColor(line, theme);
         Rect lb = labelBounds(conn, false, src.label, font);
         c.drawText(src.label, lb.x, lb.y, font, labelColor);
         lb = labelBounds(conn, true, trg.label, font);
@@ -77,9 +77,7 @@ public final class CrowsFootPainter implements NotationPainter {
         }
     }
 
-    private static void paintDecoration(Canvas c, Points pts, Type type, Theme theme) {
-        Color fg = theme.linesForeground;
-        Color bg = theme.diagramBackground;
+    private static void paintDecoration(Canvas c, Points pts, Type type, Color fg, Color bg) {
         switch (type) {
             case ZERO_OR_ONE -> {
                 line(c, pts, 3, 4, fg);
