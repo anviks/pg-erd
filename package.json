@@ -1,0 +1,46 @@
+{
+  "name": "dbeaver-erd",
+  "version": "0.2.0",
+  "description": "Headless PostgreSQL ERD renderer (PNG/SVG) in the style of DBeaver, laid out with ELK",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "dbeaver-erd": "bin/dbeaver-erd.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "bin",
+    "dist",
+    "resources",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:it": "RUN_IT=1 vitest run test/integration",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "erd": "node bin/dbeaver-erd.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "commander": "^13.1.0",
+    "elkjs": "^0.12.0",
+    "opentype.js": "^1.3.4",
+    "pg": "^8.16.3",
+    "pg-connection-string": "^2.14.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^11.0.0",
+    "@types/node": "^22.15.0",
+    "@types/opentype.js": "^1.3.8",
+    "@types/pg": "^8.15.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

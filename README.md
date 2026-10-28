@@ -1,44 +1,54 @@
 # dbeaver-erd
 
 A headless command-line tool that connects to PostgreSQL and renders the schema as an
-entity-relationship diagram that looks like the PNG you get from DBeaver's ERD editor
-("Save as image"), so a CI or deploy job can produce the diagram without a GUI.
+entity-relationship diagram in the style of DBeaver's ERD editor, as PNG and/or SVG, so a CI or
+deploy job can produce the diagram without a GUI.
 
-It re-implements DBeaver's ERD drawing rules (entity box layout, colours, icons, IDEF1X and
-crow's-foot notation) in plain Java2D and lays the tables out with the Eclipse Layout Kernel
-(ELK), which attaches every relation line to its foreign-key column and routes it with right angles.
+It is a Node.js/TypeScript program: DBeaver's drawing rules (entity boxes, colours, icons, IDEF1X
+and crow's-foot notation) are re-implemented as SVG, the tables are arranged by the Eclipse Layout
+Kernel ([elkjs](https://github.com/kieler/elkjs)) with every relation line attached to its foreign-key
+column and routed with right angles, and the PNG is rasterised with
+[resvg](https://github.com/yisibl/resvg-js). No browser, JVM or native image library is needed.
 
 ```
-java -jar dbeaver-erd.jar --url jdbc:postgresql://db.example.com:5432/app \
-    --user app --schema public --out schema.png --svg schema.svg
+npx dbeaver-erd --url postgres://app@db.example.com:5432/app \
+    --schema public --out schema.png --svg schema.svg
 ```
 
 The password is read from `PGPASSWORD` by default (`--password-env NAME` for another variable,
-`--password` to pass it directly).
+`--password` to pass it directly, or put it in the URL). JDBC-style URLs
+(`jdbc:postgresql://host/db`) are accepted too.
 
 ## Requirements
 
-* Java 21 or newer to run the jar (no display or native libraries needed).
+* Node.js 20 or newer. The only native dependency, resvg, ships prebuilt binaries for Linux
+  (glibc and musl), macOS and Windows on x64 and arm64.
 * PostgreSQL 10 or newer.
 * The bundled font covers Latin only. Names and comments in other scripts (Cyrillic, Greek, CJK, ...)
-  are drawn with the system's sans-serif font, so a CI image needs one that covers those scripts
-  installed (for example `fonts-dejavu` or `fonts-noto` on Debian/Ubuntu, `dejavu-sans-fonts` on Fedora).
+  are measured and drawn with an installed fallback font (DejaVu Sans, Noto Sans, Liberation Sans,
+  Arial or Segoe UI), so a CI image needs one of those (for example `fonts-dejavu` on Debian/Ubuntu,
+  `dejavu-sans-fonts` on Fedora, `ttf-dejavu` on Alpine). The `paper` look needs an installed
+  monospace font (DejaVu Sans Mono, Liberation Mono, Noto Sans Mono, Consolas or Menlo).
 
-## Build
+## Install and build
 
 ```
-./gradlew build          # unit tests + build/libs/dbeaver-erd.jar
-./gradlew integrationTest   # end-to-end against PostgreSQL in Docker (Testcontainers)
+npm install
+npm run build        # compiles TypeScript into dist/
+npm test             # unit tests (no database needed), images land in test-output/
+npm run test:it      # end-to-end against PostgreSQL in Docker (Testcontainers)
+node bin/dbeaver-erd.js --help
 ```
 
-The build uses a Java 21 toolchain; if no JDK is installed, Gradle downloads one automatically.
+`npm link` makes `dbeaver-erd` available on the PATH; `npm pack` produces a tarball you can
+`npm install -g`.
 
 ## Options
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--url` | required | JDBC URL, e.g. `jdbc:postgresql://host:5432/db` |
-| `-U`, `--user` | `PGUSER` / OS user | database user |
+| `--url` | required | `postgres://user:pass@host:5432/db` or `jdbc:postgresql://host:5432/db` |
+| `-U`, `--user` | URL user, `PGUSER` or the OS user | database user |
 | `--password`, `--password-env VAR` | `PGPASSWORD` | password, or the environment variable holding it |
 | `-s`, `--schema` | `public` | schema to diagram (DBeaver's "ER Diagram" tab on a schema) |
 | `-t`, `--table` | | diagram one table plus the tables it references / that reference it (DBeaver's table ERD tab; the root table gets the orange header) |
@@ -46,14 +56,14 @@ The build uses a Java 21 toolchain; if no JDK is installed, Gradle downloads one
 | `--no-views`, `--partitions` | views on, partitions off | same as DBeaver's preferences |
 | `-o`, `--out FILE.png` | | PNG output |
 | `--svg FILE.svg` | | SVG output (`--svg-embed-font` makes it self-contained) |
-| `--scale N` | 1 | integer upscale of the PNG for HiDPI |
+| `--scale N` | 1 | scale factor for the PNG, e.g. `2` for HiDPI; fractions like `1.5` work |
 | `--notation idef1x\|crowsfoot` | `idef1x` | connection notation |
-| `--attributes all\|keys\|primary\|none` | `all` | which columns to show |
-| `--show types,nullability,comments,fqn,alpha` | | DBeaver's view styles (icons are on; `--hide icons` turns them off) |
 | `--look dbeaver\|clean\|paper\|pastel` | `dbeaver` | visual style, see [Looks](#looks) |
 | `--theme light\|dark` | `light` | light or dark variant of the look |
+| `--attributes all\|keys\|primary\|none` | `all` | which columns to show |
+| `--show types,nullability,comments,fqn,alpha` | | DBeaver's view styles (icons are on; `--hide icons` turns them off) |
 | `--color "key=#rrggbb;key=r,g,b"` | | colour overrides (see `--help` for the keys) |
-| `--font FAMILY`, `--font-size PT` | bundled Selawik, 9 pt | font; Selawik has Segoe UI's metrics, DBeaver's default UI font |
+| `--font FAMILY\|file.ttf`, `--font-bold file.ttf`, `--font-size PT` | bundled Selawik, 9 pt | an installed family, or font files; Selawik has Segoe UI's metrics, DBeaver's default UI font |
 
 Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.
 
@@ -93,21 +103,42 @@ Dark variants of the same looks (`--theme dark`):
   `numeric(10, 2)`, `timestamptz`, `_text` for arrays, `schema.type` for user-defined types.
 
 Differences you may notice: tables are arranged by ELK rather than DBeaver's "Arrange all", and the
-lines are orthogonal instead of DBeaver's diagonal shortest paths; text is rendered by Java2D instead
-of GDI/Cairo, so label widths can be a pixel off; and DBeaver takes a few colours from the OS theme
-(here the Windows defaults are used, override with `--color`).
+lines are orthogonal instead of DBeaver's diagonal shortest paths; text is measured from the font
+files directly, so label widths can be a pixel off from DBeaver's GDI/Cairo metrics; and DBeaver takes
+a few colours from the OS theme (here the Windows defaults are used, override with `--color`).
+
+## Use as a library
+
+```ts
+import pg from 'pg';
+import { FontSet, Look, PgSchemaReader, RenderOptions, render, toPng } from 'dbeaver-erd';
+
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await client.connect();
+const diagram = await new PgSchemaReader(client).readSchema('public');
+await client.end();
+
+const options = new RenderOptions();
+options.look = Look.clean();
+options.theme = options.look.theme(false);
+options.fonts = FontSet.load(null);
+const rendered = await render(diagram, options);
+const svg = rendered.toSvg();
+const png = toPng(rendered, svg, { scale: 2 });
+```
 
 ## CI example (GitHub Actions)
 
 ```yaml
-- uses: actions/setup-java@v4
-  with: { distribution: temurin, java-version: '21' }
-- run: java -jar dbeaver-erd.jar --url "$DATABASE_JDBC_URL" --user "$DB_USER" --schema public --out docs/erd.png --svg docs/erd.svg
+- uses: actions/setup-node@v4
+  with: { node-version: 22 }
+- run: sudo apt-get install -y fonts-dejavu-core   # only needed for non-Latin names/comments
+- run: npx dbeaver-erd --url "$DATABASE_URL" --schema public --out docs/erd.png --svg docs/erd.svg
   env:
     PGPASSWORD: ${{ secrets.DB_PASSWORD }}
 ```
 
 ## Licenses
 
-The tool is built on the Eclipse Layout Kernel (EPL-2.0), DBeaver's icons (Apache-2.0) and
-the Selawik font (SIL OFL 1.1); see `THIRD_PARTY_NOTICES.md`.
+The tool itself is MIT. It bundles DBeaver's icons (Apache-2.0) and the Selawik font (SIL OFL 1.1)
+and depends on elkjs (EPL-2.0) and resvg-js (MPL-2.0); see `THIRD_PARTY_NOTICES.md`.
