@@ -18,7 +18,7 @@ export class RenderedDiagram {
     readonly options: RenderOptions,
   ) {}
 
-  /** FreeformLayeredPane.getFreeformExtent(): union of the entity and connection layers. */
+  /** Union of all tables and everything drawn for the connections. */
   extent(): Rect {
     let r: Rect | null = null;
     for (const b of this.boxes) {
@@ -33,7 +33,7 @@ export class RenderedDiagram {
     return r ?? new Rect();
   }
 
-  /** Paint order of GEF's printable layers: entities first, connections on top. */
+  /** Tables first, connections on top. */
   paint(canvas: SvgCanvas): void {
     for (const b of this.boxes) b.paint(canvas);
     for (const c of this.connections) this.notation.paint(canvas, c, this.options);
@@ -48,7 +48,7 @@ export class RenderedDiagram {
     const h = extent.height + margin * 2;
     const canvas = new SvgCanvas(new Icons(), this.options.fonts, -extent.x + margin, -extent.y + margin);
     this.paint(canvas);
-    return canvas.toSvg(w, h, this.options.theme.diagramBackground, this.options.embedSvgFont);
+    return canvas.toSvg(w, h, this.options.theme.background, this.options.embedSvgFont);
   }
 }
 

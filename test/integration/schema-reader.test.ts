@@ -23,7 +23,7 @@ afterAll(async () => {
 });
 
 describe('PgSchemaReader', () => {
-  it('reads the schema like DBeaver', async () => {
+  it('reads the schema', async () => {
     const d = await new PgSchemaReader(client).readSchema('shop');
     const e = new Map(d.entities.map((x) => [x.name, x]));
     expect(d.entities.length, [...e.keys()].join(',')).toBe(11);
@@ -33,40 +33,40 @@ describe('PgSchemaReader', () => {
 
     const attrs = (name: string) => new Map(e.get(name)!.attributes.map((a) => [a.name, a]));
     const cust = attrs('customers');
-    expect(cust.get('id')!.fullTypeName).toBe('int4');
+    expect(cust.get('id')!.fullTypeName).toBe('integer');
     expect(cust.get('id')!.inPrimaryKey).toBe(true);
-    expect(cust.get('email')!.fullTypeName).toBe('varchar(255)');
+    expect(cust.get('email')!.fullTypeName).toBe('character varying(255)');
     expect(cust.get('email')!.required).toBe(true);
     expect(cust.get('email')!.inPrimaryKey).toBe(false);
     expect(cust.get('email')!.inAnyConstraint).toBe(true);
     expect(cust.get('email')!.comment).toBe('login name');
-    expect(cust.get('created_at')!.fullTypeName).toBe('timestamptz');
-    expect(cust.get('active')!.fullTypeName).toBe('bool');
+    expect(cust.get('created_at')!.fullTypeName).toBe('timestamp with time zone');
+    expect(cust.get('active')!.fullTypeName).toBe('boolean');
     expect(cust.get('active')!.iconId).toBe('types/boolean');
     expect(cust.get('mood')!.fullTypeName).toBe('shop.mood');
-    expect(cust.get('tags')!.fullTypeName).toBe('_text');
+    expect(cust.get('tags')!.fullTypeName).toBe('text[]');
     expect(cust.get('tags')!.iconId).toBe('types/array');
     expect(cust.get('ext_id')!.fullTypeName).toBe('uuid');
     expect(cust.get('ext_id')!.iconId).toBe('types/uuid');
 
     const ord = attrs('orders');
-    expect(ord.get('id')!.fullTypeName).toBe('int8');
-    expect(ord.get('placed_at')!.fullTypeName).toBe('timestamp(3)');
-    expect(ord.get('total')!.fullTypeName).toBe('numeric(10, 2)');
+    expect(ord.get('id')!.fullTypeName).toBe('bigint');
+    expect(ord.get('placed_at')!.fullTypeName).toBe('timestamp(3) without time zone');
+    expect(ord.get('total')!.fullTypeName).toBe('numeric(10,2)');
     expect(ord.get('notes')!.iconId).toBe('types/json');
     expect(ord.get('delivery')!.fullTypeName).toBe('interval day to second(3)');
-    expect(ord.get('opening')!.fullTypeName).toBe('timetz(0)');
+    expect(ord.get('opening')!.fullTypeName).toBe('time(0) with time zone');
     expect(ord.get('customer_id')!.inForeignKey).toBe(true);
 
     const prod = attrs('products');
-    expect(prod.get('price')!.fullTypeName).toBe('numeric(12, 2)');
-    expect(prod.get('weight')!.fullTypeName).toBe('numeric(8)');
+    expect(prod.get('price')!.fullTypeName).toBe('numeric(12,2)');
+    expect(prod.get('weight')!.fullTypeName).toBe('numeric(8,0)');
     expect(prod.get('picture')!.iconId).toBe('types/binary');
 
     expect(attrs('settings').get('key')!.inPrimaryKey).toBe(true);
     expect(e.get('no_keys_at_all')!.keyAttributes()).toHaveLength(0);
     expect(attrs('no_keys_at_all').get('b')!.fullTypeName).toBe('bit(8)');
-    expect(attrs('no_keys_at_all').get('c')!.fullTypeName).toBe('varbit(3)');
+    expect(attrs('no_keys_at_all').get('c')!.fullTypeName).toBe('bit varying(3)');
 
     const a = new Map(d.associations.map((x) => [x.name, x]));
     expect(a.size, [...a.keys()].join(',')).toBe(6);

@@ -11,7 +11,7 @@ export function toPng(diagram: RenderedDiagram, svg?: string, opts: PngOptions =
   const scale = opts.scale ?? diagram.options.scale;
   const r = new Resvg(svg ?? diagram.toSvg(), {
     fitTo: { mode: 'zoom', value: scale },
-    background: diagram.options.theme.diagramBackground,
+    background: diagram.options.theme.background,
     font: {
       fontFiles: diagram.options.fonts.fontFiles(),
       loadSystemFonts: true,

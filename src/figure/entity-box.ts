@@ -7,20 +7,16 @@ import type { FontSet, FontStyle } from '../text/fonts.js';
 import type { SvgCanvas } from '../render/canvas.js';
 import { ICON_SIZE, TABLE_ICON, VIEW_ICON } from './icons.js';
 
-/** DBeaver's frame width (ERDUIConstants.DEFAULT_ENTITY_BORDER_WIDTH). */
-export const BORDER = 2;
-const ICON_GAP = 3; // Draw2D Label iconTextGap
-const ICON = ICON_SIZE;
+const ICON_GAP = 3;
+/** Minimum space between the column name and the type column. */
+const COLUMN_GAP = 12;
 
-/** One attribute row (name label + right panel) with its measured sizes. */
+/** One attribute row: icon + name on the left, type / NOT NULL on the right. */
 export class Row {
   readonly textH: number;
-  readonly labelTextW: number;
   readonly labelW: number;
-  readonly labelH: number;
-  readonly itemW: number;
-  readonly itemH: number;
   readonly rightW: number;
+  readonly height: number;
 
   constructor(
     readonly attribute: Attribute,
@@ -32,46 +28,22 @@ export class Row {
     look: Look,
   ) {
     this.textH = m.height(font);
-    this.labelTextW = m.widthInt(label, font);
-    const gap = icon && label ? ICON_GAP : 0;
-    this.labelW = (icon ? ICON : 0) + gap + this.labelTextW;
-    this.labelH = Math.max(icon ? ICON : 0, this.textH);
-    this.itemW = 2 * look.itemMarginW + this.labelW;
-    this.itemH = 2 * look.itemMarginH + this.labelH;
+    const textW = m.widthInt(label, font);
+    this.labelW = (icon ? ICON_SIZE + (label ? ICON_GAP : 0) : 0) + textW;
     this.rightW = m.widthInt(right, font);
+    this.height = 2 * look.rowPadY + Math.max(icon ? ICON_SIZE : 0, this.textH);
   }
 }
 
-/** A key or attribute list section. */
+/** A key or attribute section: its rows and height (0 when empty). */
 export class Section {
-  readonly col1W: number;
-  readonly col2W: number;
-  readonly prefW: number;
-  readonly prefH: number;
-
+  readonly height: number;
   constructor(readonly rows: Row[], look: Look) {
-    let c1 = 0;
-    let c2 = 0;
-    let rowsH = 0;
-    for (const r of rows) {
-      c1 = Math.max(c1, r.itemW);
-      c2 = Math.max(c2, r.rightW);
-      rowsH += r.itemH;
-    }
-    this.col1W = c1;
-    this.col2W = c2;
-    const empty = rows.length === 0 && look.sectionTopLine === 0;
-    // GridLayout preferred size plus the (negative) border insets; DBeaver keeps an empty key section
-    this.prefW = empty ? 0 : 2 * look.listMarginW + c1 + c2 + 2 * look.listInsetSide + look.rightPad;
-    this.prefH = empty ? 0 : 2 * look.listMarginH + rowsH + look.listInsetBottom;
+    this.height = rows.length === 0 ? 0 : 2 * look.padY + rows.reduce((s, r) => s + r.height, 0);
   }
 }
 
-/**
- * Measurement and painting of one entity, reproducing DBeaver's figure tree (EntityFigure with a
- * title label, optional description, key section and attribute section). The numbers are the
- * defaults of the DBeaver look; other looks change paddings, frame and separators.
- */
+/** Measurement and painting of one table: title (with optional comment), key rows, other rows. */
 export class EntityBox {
   readonly title: string;
   readonly description: string | null;
@@ -79,10 +51,12 @@ export class EntityBox {
   readonly attrs: Section;
   readonly titleTextW: number;
   readonly titleTextH: number;
-  readonly titleLabelH: number;
   readonly titleH: number;
   readonly descW: number;
   readonly descH: number;
+  /** Width of the name column (icon + widest name) and of the type column. */
+  readonly col1W: number;
+  readonly col2W: number;
   readonly width: number;
   readonly height: number;
   readonly background: Color;
@@ -112,13 +86,11 @@ export class EntityBox {
     this.title = options.has('fqn') ? entity.fullName : entity.name;
     this.titleTextW = m.widthInt(this.title, this.titleFont);
     this.titleTextH = m.height(this.titleFont);
-    this.titleLabelH = look.titleIcon ? Math.max(ICON, this.titleTextH) : this.titleTextH;
-    this.titleH = this.titleLabelH + 2 * look.titleMarginV;
-    const titlePrefW = this.titleContentW() + 2 * look.titleMarginH;
+    this.titleH = 2 * look.titlePadY + (look.titleIcon ? Math.max(ICON_SIZE, this.titleTextH) : this.titleTextH);
 
     this.description = options.has('comments') && entity.comment ? entity.comment : null;
     this.descW = this.description ? m.widthInt(this.description, this.descFont) : 0;
-    this.descH = this.description ? m.height(this.descFont) : 0;
+    this.descH = this.description ? m.height(this.descFont) + look.titlePadY : 0;
 
     const keyRows: Row[] = [];
     const attrRows: Row[] = [];
@@ -129,38 +101,49 @@ export class EntityBox {
     }
     this.keys = new Section(keyRows, look);
     this.attrs = new Section(attrRows, look);
+    const rows = [...keyRows, ...attrRows];
+    this.col1W = Math.max(0, ...rows.map((r) => r.labelW));
+    this.col2W = Math.max(0, ...rows.map((r) => r.rightW));
 
-    const w = Math.max(titlePrefW, this.descW, this.keys.prefW, this.attrs.prefW);
-    this.width = w + 2 * this.border;
-    this.height = this.titleH + this.descH + this.keys.prefH + this.attrs.prefH + this.separatorsH() + 2 * this.border;
+    const titleW = this.titleContentW() + 2 * look.titlePadX;
+    const rowsW = rows.length === 0 ? 0 : 2 * look.padX + this.col1W + (this.col2W > 0 ? COLUMN_GAP + this.col2W : 0);
+    const descW = this.descW > 0 ? this.descW + 2 * look.titlePadX : 0;
+    this.width = Math.max(titleW, rowsW, descW) + 2 * this.border;
+    this.height = 2 * this.border + this.titleH + this.descH + this.separatorsH() + this.keys.height + this.attrs.height;
 
     this.background = look.headerColor(entity, theme);
-    this.borderColor = look.linesByParent ? look.lineColor(this.background, theme) : theme.border();
-    this.titleForeground = theme.headerFg(this.background);
+    this.borderColor = look.linesByParent ? look.lineColor(this.background, theme) : theme.border;
+    this.titleForeground = theme.headerTextOn(this.background);
   }
 
   private titleContentW(): number {
-    return (this.look.titleIcon ? ICON + ICON_GAP : 0) + this.titleTextW;
+    return (this.look.titleIcon ? ICON_SIZE + ICON_GAP : 0) + this.titleTextW;
   }
 
-  /** Height taken by separator lines: one under the header, one more between key and attribute rows. */
+  private hasRows(): boolean {
+    return this.keys.rows.length + this.attrs.rows.length > 0;
+  }
+
+  private bothSections(): boolean {
+    return this.keys.rows.length > 0 && this.attrs.rows.length > 0;
+  }
+
+  /** Height of the separator lines: one under the header (if there are rows), one between the sections. */
   private separatorsH(): number {
-    if (this.look.separator === 0) return 0;
-    const both = this.keys.rows.length > 0 && this.attrs.rows.length > 0;
-    return this.look.separator + (both ? this.look.separator : 0);
+    return (this.hasRows() ? this.look.separator : 0) + (this.bothSections() ? this.look.separator : 0);
   }
 
   /** Full-width rectangle of the row showing `attributeName`, or null if that column is not displayed. */
   rowBounds(attributeName: string): Rect | null {
-    let yy = this.y + this.border + this.titleH + this.descH + this.look.separator;
+    let yy = this.y + this.border + this.titleH + this.descH + (this.hasRows() ? this.look.separator : 0);
     for (const s of [this.keys, this.attrs]) {
-      let ry = yy + this.look.listMarginH;
+      if (s.rows.length === 0) continue;
+      let ry = yy + this.look.padY;
       for (const r of s.rows) {
-        if (r.attribute.name === attributeName) return new Rect(this.x, ry, this.width, r.itemH);
-        ry += r.itemH;
+        if (r.attribute.name === attributeName) return new Rect(this.x, ry, this.width, r.height);
+        ry += r.height;
       }
-      yy += s.prefH;
-      if (s === this.keys && s.rows.length > 0 && this.attrs.rows.length > 0) yy += this.look.separator;
+      yy += s.height + this.look.separator;
     }
     return null;
   }
@@ -190,53 +173,49 @@ export class EntityBox {
     const cw = width - 2 * border;
     const radius = look.cornerRadius;
 
-    // the whole figure is opaque in the header colour; the rows area is painted over it
+    // header colour under everything; the rows area is painted over it
     if (radius > 0) c.fillRoundRect(x, y, width, height, radius, this.background);
     else c.fillRect(x, y, width, height, this.background);
 
-    // title label: content centred (DBeaver) or left-aligned
-    const labelX = cx + look.titleMarginH;
-    const labelY = cy + look.titleMarginV;
-    const labelW = cw - 2 * look.titleMarginH;
-    const offset = look.titleCentered ? Math.trunc((labelW - this.titleContentW()) / 2) : 0;
-    let tx = labelX + offset;
+    // title
+    const innerH = this.titleH - 2 * look.titlePadY;
+    const labelY = cy + look.titlePadY;
+    const labelW = cw - 2 * look.titlePadX;
+    let tx = cx + look.titlePadX + (look.titleCentered ? Math.trunc((labelW - this.titleContentW()) / 2) : 0);
     if (look.titleIcon) {
-      c.drawIcon(this.entity.isView ? VIEW_ICON : TABLE_ICON, false, tx, labelY + Math.trunc((this.titleLabelH - ICON) / 2));
-      tx += ICON + ICON_GAP;
+      c.drawIcon(this.entity.isView ? VIEW_ICON : TABLE_ICON, false, tx, labelY + Math.trunc((innerH - ICON_SIZE) / 2));
+      tx += ICON_SIZE + ICON_GAP;
     }
-    c.drawText(this.title, tx, labelY + Math.trunc((this.titleLabelH - this.titleTextH) / 2), this.titleFont, this.titleForeground);
+    c.drawText(this.title, tx, labelY + Math.trunc((innerH - this.titleTextH) / 2), this.titleFont, this.titleForeground);
     let yy = cy + this.titleH;
-
     if (this.description) {
-      c.drawText(this.description, cx + Math.trunc((cw - this.descW) / 2), yy, this.descFont, this.titleForeground);
+      const dx = look.titleCentered ? cx + Math.trunc((cw - this.descW) / 2) : cx + look.titlePadX;
+      c.drawText(this.description, dx, yy, this.descFont, this.titleForeground);
       yy += this.descH;
     }
 
-    // rows area: square at the top, following the frame's rounding at the bottom
-    const bodyTop = yy;
-    const bodyH = y + height - bodyTop;
-    if (bodyH > 0) {
+    if (this.hasRows()) {
+      // rows area: square at the top, following the frame's rounding at the bottom
+      const bodyTop = yy;
+      const bodyH = y + height - bodyTop;
       if (radius > 0) {
         const r = Math.min(radius, Math.trunc(bodyH / 2));
-        c.fillRect(x, bodyTop, width, bodyH - r, theme.attrBackground);
-        c.fillRoundRect(x, y + height - 2 * r, width, 2 * r, r, theme.attrBackground);
+        c.fillRect(x, bodyTop, width, bodyH - r, theme.body);
+        c.fillRoundRect(x, y + height - 2 * r, width, 2 * r, r, theme.body);
       } else {
-        c.fillRect(x, bodyTop, width, bodyH, theme.attrBackground);
+        c.fillRect(x, bodyTop, width, bodyH, theme.body);
       }
-    }
-    if (look.separator > 0) {
       this.separator(c, yy, theme);
       yy += look.separator;
+      yy = this.paintSection(c, this.keys, cx, yy, cw, theme);
+      if (this.bothSections()) {
+        this.separator(c, yy, theme);
+        yy += look.separator;
+      }
+      this.paintSection(c, this.attrs, cx, yy, cw, theme);
     }
 
-    yy = this.paintSection(c, this.keys, cx, yy, cw, theme);
-    if (look.separator > 0 && this.keys.rows.length > 0 && this.attrs.rows.length > 0) {
-      this.separator(c, yy, theme);
-      yy += look.separator;
-    }
-    this.paintSection(c, this.attrs, cx, yy, cw, theme);
-
-    // frame: a stroke of width w is inset by w/2 so it stays inside the figure (Draw2D LineBorder)
+    // frame: a stroke of width w is inset by w/2 so it stays inside the figure
     const inset = Math.trunc(border / 2);
     const shrink = 2 * inset + (border % 2);
     if (radius > 0) {
@@ -247,47 +226,37 @@ export class EntityBox {
   }
 
   private separator(c: SvgCanvas, yy: number, theme: Theme): void {
-    const half = Math.trunc(this.look.separator / 2);
-    c.drawPolyline([this.x, this.x + this.width], [yy + half, yy + half], this.look.separator, theme.separator());
+    const w = this.look.separator;
+    if (w === 0) return;
+    const half = Math.trunc(w / 2);
+    const color = this.look.separatorInBorderColor ? this.borderColor : theme.separator;
+    c.drawPolyline([this.x, this.x + this.width], [yy + half, yy + half], w, color);
   }
 
-  private paintSection(c: SvgCanvas, s: Section, listX: number, listY: number, listW: number, theme: Theme): number {
+  private paintSection(c: SvgCanvas, s: Section, cx: number, top: number, cw: number, theme: Theme): number {
+    if (s.rows.length === 0) return top;
     const look = this.look;
-    const listH = s.prefH;
-    if (listH === 0) return listY;
-    if (look.sectionTopLine > 0) {
-      // ColumnFigureBorder: 2px line across the top in the border colour
-      c.drawPolyline([listX, listX + listW], [listY, listY], look.sectionTopLine, this.borderColor);
-    }
-    // client area is the bounds expanded by the negative insets, then the GridLayout margins
-    const x0 = listX + look.listInsetSide + look.listMarginW;
-    const y0 = listY + look.listMarginH;
-    const available = listW - 2 * look.listInsetSide - 2 * look.listMarginW;
-    const col1 = available - s.col2W - look.rightPad; // column 1 grabs the excess
-    const rightEdge = x0 + col1 + s.col2W;
-
-    let ry = y0;
+    const left = cx + look.padX;
+    const rightEdge = cx + cw - look.padX;
+    let ry = top + look.padY;
     for (const r of s.rows) {
-      const lx = x0 + look.itemMarginW;
-      const ly = ry + look.itemMarginH;
-      let tx = lx;
+      const inner = r.height - 2 * look.rowPadY;
+      const ly = ry + look.rowPadY;
+      let tx = left;
       if (r.icon) {
-        c.drawIcon(r.attribute.iconId, r.attribute.inPrimaryKey, lx, ly + Math.trunc((r.labelH - ICON) / 2));
-        tx += ICON + ICON_GAP;
+        c.drawIcon(r.attribute.iconId, r.attribute.inPrimaryKey, tx, ly + Math.trunc((inner - ICON_SIZE) / 2));
+        tx += ICON_SIZE + ICON_GAP;
       }
-      c.drawText(r.label, tx, ly + Math.trunc((r.labelH - r.textH) / 2), r.font, theme.attrForeground);
-      if (r.right) {
-        // right panel: HORIZONTAL_ALIGN_END, at the row top (DBeaver) or vertically centred
-        const ty = look.rightTextTop ? ry : ly + Math.trunc((r.labelH - r.textH) / 2);
-        c.drawText(r.right, rightEdge - r.rightW, ty, r.font, theme.typeFg());
-      }
-      ry += r.itemH;
+      const ty = ly + Math.trunc((inner - r.textH) / 2);
+      c.drawText(r.label, tx, ty, r.font, theme.text);
+      if (r.right) c.drawText(r.right, rightEdge - r.rightW, ty, r.font, theme.typeText);
+      ry += r.height;
     }
-    return listY + listH;
+    return top + s.height;
   }
 }
 
-/** ERDContentProviderDefault.fillEntityFromObject: visibility filter and optional alphabetical sort. */
+/** Visibility filter and optional alphabetical sort. */
 export function visibleAttributes(entity: Entity, options: RenderOptions): Attribute[] {
   if (options.visibility === 'none') return [];
   const list = entity.attributes.filter((a) => {
@@ -298,23 +267,16 @@ export function visibleAttributes(entity: Entity, options: RenderOptions): Attri
       default: return false;
     }
   });
-  if (options.has('alpha')) {
-    list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-  }
+  if (options.has('alpha')) list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   return list;
 }
 
-/** ERDUIUtils.getFullAttributeLabel(includeType=false). */
 export function attributeLabel(a: Attribute, options: RenderOptions): string {
-  let s = a.name;
-  if (options.has('comments') && a.comment) s += ` - ${a.comment}`;
-  return s;
+  return options.has('comments') && a.comment ? `${a.name} - ${a.comment}` : a.name;
 }
 
-/** AttributeItemFigure.updateLabels right panel text. */
 export function rightText(a: Attribute, options: RenderOptions): string {
-  let s = '';
-  if (options.has('types')) s = a.fullTypeName;
+  let s = options.has('types') ? a.fullTypeName : '';
   if (options.has('nullability') && a.required) s += ' NOT NULL';
-  return s;
+  return s.trim();
 }

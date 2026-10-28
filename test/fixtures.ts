@@ -6,7 +6,7 @@ import { FontSet } from '../src/text/fonts.js';
 const fontCache = new Map<string, FontSet>();
 
 /** Default options with the look's font loaded (fonts are cached across tests). */
-export function options(look: Look = Look.dbeaver(), dark = false): RenderOptions {
+export function options(look: Look = Look.clean(), dark = false): RenderOptions {
   const o = new RenderOptions();
   o.look = look;
   o.theme = look.theme(dark);
@@ -23,19 +23,19 @@ export function col(name: string, type: string, icon: string, notNull: boolean, 
 
 export function customers(): Entity {
   const e = new Entity('public', 'customers', 'table', 'People who buy things');
-  e.addAttribute(col('id', 'int4', 'types/number', true, true, false));
-  e.addAttribute(col('email', 'varchar(255)', 'types/string', true, false, false));
+  e.addAttribute(col('id', 'integer', 'types/number', true, true, false));
+  e.addAttribute(col('email', 'character varying(255)', 'types/string', true, false, false));
   e.addAttribute(col('full_name', 'text', 'types/string', false, false, false));
-  e.addAttribute(col('created_at', 'timestamptz', 'types/datetime', true, false, false));
-  e.addAttribute(col('active', 'bool', 'types/boolean', true, false, false));
+  e.addAttribute(col('created_at', 'timestamp with time zone', 'types/datetime', true, false, false));
+  e.addAttribute(col('active', 'boolean', 'types/boolean', true, false, false));
   return e;
 }
 
 export function orders(): Entity {
   const e = new Entity('public', 'orders', 'table');
-  e.addAttribute(col('id', 'int8', 'types/number', true, true, false));
-  e.addAttribute(col('customer_id', 'int4', 'types/number', true, false, true));
-  e.addAttribute(col('total', 'numeric(10, 2)', 'types/number', true, false, false));
+  e.addAttribute(col('id', 'bigint', 'types/number', true, true, false));
+  e.addAttribute(col('customer_id', 'integer', 'types/number', true, false, true));
+  e.addAttribute(col('total', 'numeric(10,2)', 'types/number', true, false, false));
   e.addAttribute(col('notes', 'jsonb', 'types/json', false, false, false));
   return e;
 }
@@ -44,14 +44,14 @@ export function orders(): Entity {
 export function hub(n: number): Diagram {
   const d = new Diagram('hub');
   const users = new Entity('public', 'users', 'table');
-  users.addAttribute(col('id', 'int4', 'types/number', true, true, false));
+  users.addAttribute(col('id', 'integer', 'types/number', true, true, false));
   users.addAttribute(col('name', 'text', 'types/string', true, false, false));
-  users.addAttribute(col('email', 'varchar(255)', 'types/string', true, false, false));
+  users.addAttribute(col('email', 'character varying(255)', 'types/string', true, false, false));
   d.addEntity(users);
   for (let i = 1; i <= n; i++) {
     const e = new Entity('public', `child_${i}`, 'table');
-    e.addAttribute(col('id', 'int4', 'types/number', true, true, false));
-    e.addAttribute(col('user_id', 'int4', 'types/number', i % 3 !== 0, false, true));
+    e.addAttribute(col('id', 'integer', 'types/number', true, true, false));
+    e.addAttribute(col('user_id', 'integer', 'types/number', i % 3 !== 0, false, true));
     e.addAttribute(col('payload', 'text', 'types/string', false, false, false));
     d.addEntity(e);
     d.addAssociation({
@@ -66,13 +66,13 @@ export function hub(n: number): Diagram {
 export function multiFk(n: number): Diagram {
   const d = new Diagram('multifk');
   const units = new Entity('public', 'units', 'table');
-  units.addAttribute(col('id', 'int4', 'types/number', true, true, false));
+  units.addAttribute(col('id', 'integer', 'types/number', true, true, false));
   units.addAttribute(col('name', 'text', 'types/string', true, false, false));
   const parents: Entity[] = [];
   for (let i = 1; i <= n; i++) {
-    units.addAttribute(col(`ref${i}_id`, 'int4', 'types/number', false, false, true));
+    units.addAttribute(col(`ref${i}_id`, 'integer', 'types/number', false, false, true));
     const p = new Entity('public', `parent_${i}`, 'table');
-    p.addAttribute(col('id', 'int4', 'types/number', true, true, false));
+    p.addAttribute(col('id', 'integer', 'types/number', true, true, false));
     p.addAttribute(col('label', 'text', 'types/string', false, false, false));
     parents.push(p);
   }
@@ -93,34 +93,34 @@ export function shop(): Diagram {
   const cust = customers();
   const ord = orders();
   const items = new Entity('public', 'order_items', 'table');
-  items.addAttribute(col('order_id', 'int8', 'types/number', true, true, true));
-  items.addAttribute(col('product_id', 'int4', 'types/number', true, true, true));
-  items.addAttribute(col('quantity', 'int4', 'types/number', true, false, false));
+  items.addAttribute(col('order_id', 'bigint', 'types/number', true, true, true));
+  items.addAttribute(col('product_id', 'integer', 'types/number', true, true, true));
+  items.addAttribute(col('quantity', 'integer', 'types/number', true, false, false));
   const products = new Entity('public', 'products', 'table');
-  products.addAttribute(col('id', 'int4', 'types/number', true, true, false));
-  products.addAttribute(col('sku', 'varchar(32)', 'types/string', true, false, false));
-  products.addAttribute(col('name', 'varchar(200)', 'types/string', true, false, false));
-  products.addAttribute(col('category_id', 'int4', 'types/number', false, false, true));
-  products.addAttribute(col('price', 'numeric(12, 2)', 'types/number', true, false, false));
+  products.addAttribute(col('id', 'integer', 'types/number', true, true, false));
+  products.addAttribute(col('sku', 'character varying(32)', 'types/string', true, false, false));
+  products.addAttribute(col('name', 'character varying(200)', 'types/string', true, false, false));
+  products.addAttribute(col('category_id', 'integer', 'types/number', false, false, true));
+  products.addAttribute(col('price', 'numeric(12,2)', 'types/number', true, false, false));
   const categories = new Entity('public', 'categories', 'table');
-  categories.addAttribute(col('id', 'int4', 'types/number', true, true, false));
-  categories.addAttribute(col('parent_id', 'int4', 'types/number', false, false, true));
-  categories.addAttribute(col('name', 'varchar(100)', 'types/string', true, false, false));
+  categories.addAttribute(col('id', 'integer', 'types/number', true, true, false));
+  categories.addAttribute(col('parent_id', 'integer', 'types/number', false, false, true));
+  categories.addAttribute(col('name', 'character varying(100)', 'types/string', true, false, false));
   const audit = new Entity('public', 'audit_log', 'table');
-  audit.addAttribute(col('id', 'int8', 'types/number', true, true, false));
+  audit.addAttribute(col('id', 'bigint', 'types/number', true, true, false));
   audit.addAttribute(col('payload', 'jsonb', 'types/json', true, false, false));
-  audit.addAttribute(col('logged_at', 'timestamptz', 'types/datetime', true, false, false));
+  audit.addAttribute(col('logged_at', 'timestamp with time zone', 'types/datetime', true, false, false));
   const settings = new Entity('public', 'settings', 'table');
-  settings.addAttribute(col('key', 'varchar(64)', 'types/string', true, true, false));
+  settings.addAttribute(col('key', 'character varying(64)', 'types/string', true, true, false));
   settings.addAttribute(col('value', 'text', 'types/string', false, false, false));
   const view = new Entity('public', 'v_customer_orders', 'view');
-  view.addAttribute(col('customer_id', 'int4', 'types/number', false, false, false));
-  view.addAttribute(col('order_count', 'int8', 'types/number', false, false, false));
+  view.addAttribute(col('customer_id', 'integer', 'types/number', false, false, false));
+  view.addAttribute(col('order_count', 'bigint', 'types/number', false, false, false));
   const addresses = new Entity('public', 'addresses', 'table');
-  addresses.addAttribute(col('id', 'int4', 'types/number', true, true, false));
-  addresses.addAttribute(col('customer_id', 'int4', 'types/number', true, false, true));
-  addresses.addAttribute(col('line1', 'varchar(255)', 'types/string', true, false, false));
-  addresses.addAttribute(col('city', 'varchar(100)', 'types/string', true, false, false));
+  addresses.addAttribute(col('id', 'integer', 'types/number', true, true, false));
+  addresses.addAttribute(col('customer_id', 'integer', 'types/number', true, false, true));
+  addresses.addAttribute(col('line1', 'character varying(255)', 'types/string', true, false, false));
+  addresses.addAttribute(col('city', 'character varying(100)', 'types/string', true, false, false));
   addresses.addAttribute(col('geo', 'point', 'types/unknown', false, false, false));
 
   for (const e of [cust, ord, items, products, categories, audit, settings, view, addresses]) d.addEntity(e);

@@ -1,19 +1,18 @@
 /**
  * The diagram model: entities (tables/views) with attributes, and associations (foreign keys).
- * Flags follow what DBeaver's ERD uses to draw things.
  */
 
 export type EntityKind = 'table' | 'view';
 
 export interface Attribute {
   name: string;
-  /** DBeaver-style type label, e.g. `varchar(255)`, `numeric(10, 2)`, `_int4` for arrays. */
+  /** Type label as PostgreSQL prints it, e.g. `character varying(255)`, `numeric(10,2)`, `integer[]`. */
   fullTypeName: string;
   /** Icon resource id for the type, e.g. `types/number`. */
   iconId: string;
   /** NOT NULL */
   required: boolean;
-  /** Part of the entity's "best identifier" (PK, else last unique constraint, else a unique index on NOT NULL columns). */
+  /** Part of the entity's key (PK, else the first unique constraint, else a unique index on NOT NULL columns). */
   inPrimaryKey: boolean;
   /** Part of any FK of the entity (even one whose target is not in the diagram). */
   inForeignKey: boolean;
@@ -24,10 +23,8 @@ export interface Attribute {
 
 export class Entity {
   readonly attributes: Attribute[] = [];
-  /** DBeaver's "primary" entity: the root table of a single-table diagram (orange header). */
+  /** The root table of a single-table diagram (drawn with the accent header colour). */
   primary = false;
-  /** Index of the containing schema among the diagram's schemas; 0 = first (regular header colour). */
-  containerIndex = 0;
 
   constructor(
     public readonly schema: string,
@@ -54,8 +51,8 @@ export class Entity {
 }
 
 /**
- * A foreign key drawn as a connection. Like DBeaver, `source` is the FK-owning (child) entity and
- * `target` is the referenced (parent) entity.
+ * A foreign key drawn as a connection: `source` is the FK-owning (child) entity and `target` the
+ * referenced (parent) entity.
  */
 export interface Association {
   name: string;

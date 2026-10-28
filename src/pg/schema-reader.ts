@@ -1,6 +1,6 @@
 import type { Client, ClientBase } from 'pg';
 import { Diagram, Entity, type Association, type Attribute } from '../model/index.js';
-import { fullTypeName, iconId } from './type-names.js';
+import { iconForType, typeLabel } from './type-icons.js';
 
 export interface ReaderOptions {
   showViews?: boolean;
@@ -23,11 +23,11 @@ interface Column {
   relid: number;
   attnum: number;
   name: string;
-  typeOid: number;
   typeName: string;
   typeSchema: string;
   typcategory: string;
-  typmod: number;
+  /** PostgreSQL's format_type() output, e.g. `character varying(255)`, `numeric(10,2)`, `text[]`. */
+  formatted: string;
   notNull: boolean;
   comment: string | null;
 }
@@ -53,11 +53,7 @@ type Row = Record<string, unknown>;
 const num = (v: unknown) => Number(v);
 const ints = (v: unknown): number[] => (Array.isArray(v) ? v.map(Number) : []);
 
-/**
- * Reads tables, columns, keys and foreign keys from pg_catalog and builds the diagram model the way
- * DBeaver's ERD does (ERDUtils.collectDatabaseTables, ERDEntity.addModelRelations,
- * ERDContentProviderDefault.fillEntityFromObject).
- */
+/** Reads tables, columns, keys and foreign keys from pg_catalog and builds the diagram model. */
 export class PgSchemaReader {
   private readonly options: Required<ReaderOptions>;
 
@@ -72,13 +68,13 @@ export class PgSchemaReader {
     };
   }
 
-  /** DBeaver "ER Diagram" tab on a schema: all tables (and views) directly in the schema. */
+  /** All tables (and views) directly in the schema. */
   async readSchema(schema: string): Promise<Diagram> {
     const tables = (await this.loadTables('n.nspname = $1', [schema])).filter((t) => this.options.tableFilter(t.name));
     return this.build(schema, tables, null);
   }
 
-  /** DBeaver "ER Diagram" tab on one table: the table, what it references and what references it. */
+  /** One table, the tables it references and the tables that reference it. */
   async readTable(schema: string, table: string): Promise<Diagram> {
     const root = await this.loadTables('n.nspname = $1 AND c.relname = $2', [schema, table]);
     if (root.length === 0) throw new Error(`table not found: ${schema}.${table}`);
@@ -114,8 +110,8 @@ export class PgSchemaReader {
 
   private async loadColumns(oids: number[]): Promise<Map<number, Column[]>> {
     const sql =
-      'SELECT a.attrelid, a.attnum, a.attname, a.atttypid, t.typname, tn.nspname AS typschema, t.typcategory, a.atttypmod, a.attnotnull, ' +
-      'col_description(a.attrelid, a.attnum) AS comment ' +
+      'SELECT a.attrelid, a.attnum, a.attname, t.typname, tn.nspname AS typschema, t.typcategory, ' +
+      'pg_catalog.format_type(a.atttypid, a.atttypmod) AS formatted, a.attnotnull, col_description(a.attrelid, a.attnum) AS comment ' +
       'FROM pg_catalog.pg_attribute a ' +
       'JOIN pg_catalog.pg_type t ON t.oid = a.atttypid ' +
       'JOIN pg_catalog.pg_namespace tn ON tn.oid = t.typnamespace ' +
@@ -125,9 +121,9 @@ export class PgSchemaReader {
     const out = new Map<number, Column[]>();
     for (const r of res.rows as Row[]) {
       const c: Column = {
-        relid: num(r.attrelid), attnum: num(r.attnum), name: String(r.attname), typeOid: num(r.atttypid),
+        relid: num(r.attrelid), attnum: num(r.attnum), name: String(r.attname),
         typeName: String(r.typname), typeSchema: String(r.typschema), typcategory: String(r.typcategory),
-        typmod: num(r.atttypmod), notNull: Boolean(r.attnotnull), comment: (r.comment as string | null) ?? null,
+        formatted: String(r.formatted), notNull: Boolean(r.attnotnull), comment: (r.comment as string | null) ?? null,
       };
       let list = out.get(c.relid);
       if (!list) out.set(c.relid, (list = []));
@@ -154,7 +150,7 @@ export class PgSchemaReader {
     return out;
   }
 
-  /** Unique indexes in DBeaver's index-cache order (ORDER BY table name, index name). */
+  /** Unique indexes on plain columns, by name. */
   private async loadUniqueIndexes(oids: number[]): Promise<Map<number, Index[]>> {
     const sql =
       'SELECT i.indrelid, ic.relname, i.indkey::int2[] AS keys ' +
@@ -183,7 +179,6 @@ export class PgSchemaReader {
 
     const entityOf = new Map<number, Entity>();
     const colByNum = new Map<number, Map<number, Column>>();
-    const containerIndex = new Map<string, number>();
 
     for (const t of tables) {
       const cols = columns.get(t.oid) ?? [];
@@ -202,13 +197,11 @@ export class PgSchemaReader {
 
       const e = new Entity(t.schema, t.name, isView(t) ? 'view' : 'table', t.comment);
       e.primary = primaryOid !== null && primaryOid === t.oid;
-      if (!containerIndex.has(t.schema)) containerIndex.set(t.schema, containerIndex.size);
-      e.containerIndex = containerIndex.get(t.schema)!;
       for (const c of cols) {
         const attr: Attribute = {
           name: c.name,
-          fullTypeName: typeLabel(c),
-          iconId: iconId(c.typcategory, c.typeName, 0),
+          fullTypeName: typeLabel(c.formatted, c.typeSchema),
+          iconId: iconForType(c.typcategory, c.typeName),
           required: c.notNull,
           inPrimaryKey: identifier.has(c.attnum),
           inForeignKey: inFk.has(c.attnum),
@@ -221,7 +214,7 @@ export class PgSchemaReader {
       diagram.addEntity(e);
     }
 
-    // associations: FKs whose both ends are in the diagram (others are silently unresolved, like DBeaver)
+    // associations: FKs whose both ends are in the diagram
     for (const t of tables) {
       const source = entityOf.get(t.oid)!;
       const cons = constraints.get(t.oid) ?? [];
@@ -255,27 +248,13 @@ export class PgSchemaReader {
   }
 }
 
-/** PostgreAttribute.getFullTypeName: array columns show the array type's own name (e.g. `_int4`). */
-function typeLabel(c: Column): string {
-  const gis = /^(geometry|geography)$/i.test(c.typeName);
-  return fullTypeName(c.typeOid, c.typeName, c.typeSchema, c.typmod, gis, 0);
-}
-
-/** ERDUtils.getBestTableIdentifier: PK, else the last unique constraint, else a unique index on NOT NULL columns. */
+/** The columns shown as the key: the PK, else the first unique constraint, else a unique index on NOT NULL columns. */
 export function bestIdentifier(t: Table, cols: Column[], cons: Constraint[], idx: Index[], byNum: Map<number, Column>): Set<number> {
   const out = new Set<number>();
   if (isView(t) || cols.length === 0) return out;
-  let unique: Constraint | null = null;
-  for (const c of cons) {
-    if (c.type === 'p') {
-      for (const k of c.keys) out.add(k);
-      return out;
-    } else if (c.type === 'u') {
-      unique = c;
-    }
-  }
-  if (unique) {
-    for (const k of unique.keys) out.add(k);
+  const key = cons.find((c) => c.type === 'p') ?? cons.find((c) => c.type === 'u');
+  if (key) {
+    for (const k of key.keys) out.add(k);
     return out;
   }
   for (const ix of idx) {
@@ -287,7 +266,7 @@ export function bestIdentifier(t: Table, cols: Column[], cons: Constraint[], idx
   return out;
 }
 
-/** DBUtils.isIdentifyingAssociation. */
+/** Identifying relation: every FK column is part of the child's PK (or of a unique constraint if it has no PK). */
 export function isIdentifying(owner: Table, fk: Constraint, ownerConstraints: Constraint[]): boolean {
   if (fk.refRelid === owner.oid) return false;
   const hasPrimaryKey = ownerConstraints.some((c) => c.type === 'p');
@@ -299,7 +278,7 @@ export function isIdentifying(owner: Table, fk: Constraint, ownerConstraints: Co
   return false;
 }
 
-/** DBUtils.isUniqueIndexForAttributes: a unique index with exactly these columns in this order. */
+/** A unique index with exactly these columns in this order (the child side is then 0..1). */
 export function isUniqueIndexFor(keys: number[], idx: Index[]): boolean {
   return idx.some((ix) => ix.keys.length === keys.length && ix.keys.every((k, i) => k === keys[i]));
 }

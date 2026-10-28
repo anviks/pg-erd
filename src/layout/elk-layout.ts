@@ -1,9 +1,8 @@
 import { createRequire } from 'node:module';
 import type { ELK as ElkApi, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api.js';
 import type { EntityBox } from '../figure/entity-box.js';
-import { BORDER } from '../figure/entity-box.js';
 import type { Association, Diagram } from '../model/index.js';
-import { fanStep, indentation, type RenderOptions } from '../style/options.js';
+import { fanStep, straightRun, type RenderOptions } from '../style/options.js';
 
 /** Final polyline of one association, from the source (FK child) box to the target (parent) box. */
 export class RoutedConnection {
@@ -60,7 +59,7 @@ export async function layoutWithElk(diagram: Diagram, boxes: EntityBox[], option
 async function run(
   boxes: EntityBox[], conns: RoutedConnection[], options: RenderOptions, targetOrder: Map<RoutedConnection, number> | null,
 ): Promise<Map<RoutedConnection, number>> {
-  const edgeNode = indentation(options.notation) + STRAIGHT_RUN_PADDING;
+  const edgeNode = straightRun(options.notation) + STRAIGHT_RUN_PADDING;
   const step = fanStep(options.notation);
   const root: ElkNode = {
     id: 'root',
@@ -197,8 +196,8 @@ export function spread(specs: PortSpec[], box: EntityBox, step: number): number[
   const n = specs.length;
   if (n === 1) return [specs[0].rowCenterY];
   const center = Math.trunc(specs.reduce((s, p) => s + p.rowCenterY, 0) / n);
-  const minY = BORDER + 2;
-  const maxY = box.height - BORDER - 2;
+  const minY = 4;
+  const maxY = box.height - 4;
   let s = step;
   if ((n - 1) * s > maxY - minY) s = Math.max(4, Math.trunc((maxY - minY) / (n - 1)));
   const span = (n - 1) * s;

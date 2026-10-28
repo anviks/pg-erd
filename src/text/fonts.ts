@@ -17,7 +17,7 @@ interface Face {
   bold: boolean;
 }
 
-export const BUNDLED_FAMILY = 'Selawik';
+export const BUNDLED_FAMILY = 'Inter';
 export const DEFAULT_POINT_SIZE = 9;
 export const NOTATION_POINT_SIZE = 8;
 
@@ -26,7 +26,7 @@ export function pxFromPt(pt: number): number {
   return Math.round((pt * 96) / 72);
 }
 
-const FALLBACK_FAMILIES = ['DejaVu Sans', 'Noto Sans', 'Liberation Sans', 'Arial', 'Segoe UI', 'Helvetica', 'Cantarell'];
+const FALLBACK_FAMILIES = ['DejaVu Sans', 'Noto Sans', 'Liberation Sans', 'Arial', 'Segoe UI', 'Helvetica', 'Cantarell', 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans Thai', 'Noto Sans Devanagari'];
 const MONO_FAMILIES = ['DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Consolas', 'Menlo', 'Courier New'];
 
 function fontDirs(): string[] {
@@ -119,7 +119,7 @@ function findInstalled(family: string): { regular: Face; bold: Face | null } | n
 
 /**
  * The fonts of a diagram: a primary family (regular + bold), the notation label size, and lazily
- * loaded fallback faces for characters the primary font lacks (e.g. Cyrillic with Selawik).
+ * loaded fallback faces for characters the primary font lacks (e.g. CJK with the bundled Inter).
  * Measurement uses the same font files that the PNG rasteriser is given, so sizes agree.
  */
 export class FontSet {
@@ -149,14 +149,7 @@ export class FontSet {
    */
   static load(family: string | null | undefined, pointSize = DEFAULT_POINT_SIZE, boldFile?: string): FontSet {
     if (!family || family.trim() === '' || family.toLowerCase() === BUNDLED_FAMILY.toLowerCase()) {
-      const r = opentype.loadSync(resourcePath('fonts/selawk.ttf'));
-      const b = opentype.loadSync(resourcePath('fonts/selawkb.ttf'));
-      return new FontSet(
-        BUNDLED_FAMILY, true,
-        { family: BUNDLED_FAMILY, path: resourcePath('fonts/selawk.ttf'), font: r, bold: false },
-        { family: BUNDLED_FAMILY, path: resourcePath('fonts/selawkb.ttf'), font: b, bold: true },
-        pointSize, FALLBACK_FAMILIES,
-      );
+      return FontSet.bundled(pointSize);
     }
     if (/\.(ttf|otf)$/i.test(family)) {
       const r = opentype.loadSync(family);
@@ -169,14 +162,30 @@ export class FontSet {
         pointSize, FALLBACK_FAMILIES,
       );
     }
-    const families = family.toLowerCase() === 'monospace' ? MONO_FAMILIES : [family];
+    const mono = family.toLowerCase() === 'monospace';
+    const families = mono ? MONO_FAMILIES : [family];
     for (const f of families) {
       const found = findInstalled(f);
       if (found) {
         return new FontSet(f, false, found.regular, found.bold ?? found.regular, pointSize, FALLBACK_FAMILIES);
       }
     }
+    if (mono) {
+      console.error(`warning: no monospace font installed (${MONO_FAMILIES.join(', ')}); using the bundled ${BUNDLED_FAMILY}`);
+      return FontSet.bundled(pointSize);
+    }
     throw new Error(`font family not installed: ${family}`);
+  }
+
+  private static bundled(pointSize: number): FontSet {
+    const regular = resourcePath('fonts/Inter-Regular.ttf');
+    const bold = resourcePath('fonts/Inter-Bold.ttf');
+    return new FontSet(
+      BUNDLED_FAMILY, true,
+      { family: BUNDLED_FAMILY, path: regular, font: opentype.loadSync(regular), bold: false },
+      { family: BUNDLED_FAMILY, path: bold, font: opentype.loadSync(bold), bold: true },
+      pointSize, FALLBACK_FAMILIES,
+    );
   }
 
   private face(style: FontStyle): Face {
@@ -202,30 +211,34 @@ export class FontSet {
     return face.font.charToGlyphIndex(String.fromCodePoint(cp)) > 0;
   }
 
-  /** Splits text into runs by the face that can draw them (whitespace sticks to the current run). */
-  runs(text: string, style: FontStyle): { text: string; face: Face }[] {
+  /**
+   * Splits text into runs by the face that can draw them (whitespace sticks to the current run).
+   * A run with `face: null` has no loaded font for its characters; it is measured at one em per
+   * character and left to the rasteriser's own system-font fallback.
+   */
+  runs(text: string, style: FontStyle): { text: string; face: Face | null }[] {
     const primary = this.face(style);
-    const out: { text: string; face: Face }[] = [];
-    let cur: Face | null = null;
+    const out: { text: string; face: Face | null }[] = [];
+    let cur: Face | null | undefined;
     let buf = '';
     for (const ch of text) {
       const cp = ch.codePointAt(0)!;
-      let f: Face;
-      if (/\s/.test(ch) && cur) f = cur;
+      let f: Face | null;
+      if (/\s/.test(ch) && cur !== undefined) f = cur;
       else if (this.hasGlyph(primary, cp)) f = primary;
       else {
         f = this.loadFallbacks().find((fb) => fb.bold === style.bold && this.hasGlyph(fb, cp))
           ?? this.loadFallbacks().find((fb) => this.hasGlyph(fb, cp))
-          ?? primary;
+          ?? null;
       }
-      if (cur && f !== cur) {
+      if (cur !== undefined && f !== cur) {
         out.push({ text: buf, face: cur });
         buf = '';
       }
       cur = f;
       buf += ch;
     }
-    if (cur) out.push({ text: buf, face: cur });
+    if (cur !== undefined) out.push({ text: buf, face: cur });
     return out;
   }
 
@@ -237,7 +250,8 @@ export class FontSet {
     if (hit !== undefined) return hit;
     let w = 0;
     for (const r of this.runs(text, style)) {
-      w += r.face.font.getAdvanceWidth(r.text, style.sizePx, { kerning: true });
+      if (r.face) w += r.face.font.getAdvanceWidth(r.text, style.sizePx, { kerning: true });
+      else w += [...r.text].length * style.sizePx;
     }
     w = Math.round(w * 100) / 100;
     this.cache.set(key, w);
@@ -281,7 +295,7 @@ export class FontSet {
   cssFamily(): string {
     const q = (s: string) => (/^[A-Za-z0-9-]+$/.test(s) ? s : `'${s.replace(/'/g, "\\'")}'`);
     const names = [this.family, ...(this.fallbacks ?? []).map((f) => f.family)];
-    if (this.bundled) names.push('Segoe UI', 'Open Sans');
+    if (this.bundled) names.push('Segoe UI', 'Roboto', 'Helvetica Neue');
     const generic = this.family.toLowerCase().includes('mono') || this.family.toLowerCase() === 'consolas' ? 'monospace' : 'sans-serif';
     return [...new Set(names)].map(q).join(', ') + ', ' + generic;
   }

@@ -16,8 +16,8 @@ const PATH_ELEMENT = /<path\b([^>]*?)\/?>(?:<\/path>)?/gs;
 const ATTR = /([\w:-]+)\s*=\s*"([^"]*)"/g;
 
 /**
- * Icon registry. Ids are resource paths without extension (`tree/table`, `types/number`). DBeaver's
- * icons are plain lists of `<path>` elements, which are copied into the SVG output verbatim.
+ * Icon registry. Ids are resource paths without extension (`tree/table`, `types/number`). The icons
+ * (from DBeaver, Apache-2.0) are plain lists of `<path>` elements, copied into the SVG output verbatim.
  */
 export class Icons {
   private readonly shapes = new Map<string, IconShape>();

@@ -9,9 +9,9 @@ const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).repla
 const off = (lineWidth: number) => (lineWidth % 2 === 1 ? 0.5 : 0);
 
 /**
- * The drawing surface: integer pixel coordinates in Draw2D/SWT conventions (strokes centred on the
- * geometric edge, text positioned by the top-left of its line box), written out as SVG. PNG output
- * is this SVG rasterised, so there is a single back end.
+ * The drawing surface: integer pixel coordinates, strokes centred on the geometric edge, text
+ * positioned by the top-left of its line box, written out as SVG. PNG output is this SVG rasterised,
+ * so there is a single back end.
  */
 export class SvgCanvas {
   private readonly body: string[] = [];
@@ -93,7 +93,9 @@ export class SvgCanvas {
       el += esc(s);
     } else {
       for (const r of runs) {
-        const fam = r.face.family === this.fonts.family ? '' : ` font-family="${esc(r.face.family)}"`;
+        // no loaded font for this run: name only generic families so the rasteriser/viewer picks a system font
+        const family = r.face ? r.face.family : 'sans-serif';
+        const fam = family === this.fonts.family ? '' : ` font-family="${esc(family)}"`;
         el += `<tspan${fam}>${esc(r.text)}</tspan>`;
       }
     }

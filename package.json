@@ -1,7 +1,7 @@
 {
-  "name": "dbeaver-erd",
-  "version": "0.2.0",
-  "description": "Headless PostgreSQL ERD renderer (PNG/SVG) in the style of DBeaver, laid out with ELK",
+  "name": "@anviks/pg-erd",
+  "version": "0.3.0",
+  "description": "Headless PostgreSQL ERD renderer: schema to PNG/SVG, laid out with ELK",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -25,7 +25,8 @@
     "test": "vitest run",
     "test:it": "RUN_IT=1 vitest run test/integration",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "erd": "node bin/dbeaver-erd.js"
+    "erd": "node bin/pg-erd.js",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

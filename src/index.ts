@@ -1,6 +1,6 @@
 export { Diagram, Entity, isSelfReference, type Association, type Attribute, type EntityKind } from './model/index.js';
 export { PgSchemaReader, type ReaderOptions } from './pg/schema-reader.js';
-export { fullTypeName, iconId } from './pg/type-names.js';
+export { iconForType, typeLabel } from './pg/type-icons.js';
 export { RenderOptions, parseNotation, parseViewStyle, parseVisibility, type Notation, type ViewStyle, type AttributeVisibility } from './style/options.js';
 export { Look, LOOK_NAMES, type LookName } from './style/look.js';
 export { Theme, parseColor, type Color } from './style/theme.js';

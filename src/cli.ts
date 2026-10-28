@@ -13,6 +13,9 @@ import { DEFAULT_POINT_SIZE, FontSet } from './text/fonts.js';
 
 interface CliOptions {
   url?: string;
+  host?: string;
+  port?: number;
+  dbname?: string;
   user?: string;
   password?: string;
   passwordEnv: string;
@@ -60,13 +63,23 @@ export function normaliseUrl(url: string): string {
   return url;
 }
 
-/** The URL's own user/password win; otherwise the flags, then PGUSER / the password variable. */
-export function connectionConfig(o: Pick<CliOptions, 'url' | 'user' | 'password' | 'passwordEnv'>): pg.ClientConfig {
-  const parsed = parseConnectionString(normaliseUrl(o.url!)) as Record<string, unknown>;
-  const cfg: Record<string, unknown> = { ...parsed, application_name: 'dbeaver-erd' };
+/**
+ * Connection settings: the URL (if given) first, then the flags, then the usual PG* environment
+ * variables and defaults (localhost:5432, the OS user, a database named after the user), which the
+ * pg driver applies to whatever is left unset.
+ */
+export function connectionConfig(
+  o: Pick<CliOptions, 'url' | 'host' | 'port' | 'dbname' | 'user' | 'password' | 'passwordEnv'>,
+  env: NodeJS.ProcessEnv = process.env,
+): pg.ClientConfig {
+  const cfg: Record<string, unknown> = o.url ? { ...(parseConnectionString(normaliseUrl(o.url)) as Record<string, unknown>) } : {};
+  cfg.application_name = 'pg-erd';
   if (cfg.port != null) cfg.port = Number(cfg.port);
-  if (!cfg.user) cfg.user = o.user ?? process.env.PGUSER ?? undefined;
-  const password = o.password ?? (o.passwordEnv ? process.env[o.passwordEnv] : undefined);
+  if (!cfg.host) cfg.host = o.host;
+  if (!cfg.port) cfg.port = o.port;
+  if (!cfg.database) cfg.database = o.dbname;
+  if (!cfg.user) cfg.user = o.user ?? env.PGUSER;
+  const password = o.password ?? (o.passwordEnv ? env[o.passwordEnv] : undefined);
   if (!cfg.password && password !== undefined) cfg.password = password;
   for (const k of Object.keys(cfg)) if (cfg[k] === undefined || cfg[k] === null) delete cfg[k];
   return cfg as pg.ClientConfig;
@@ -99,34 +112,46 @@ export function buildOptions(o: CliOptions): RenderOptions {
 }
 
 export function program(): Command {
-  const cmd = new Command('dbeaver-erd')
-    .description("Renders a PostgreSQL schema as an entity-relationship diagram in the style of DBeaver's ERD export.")
-    .version('0.2.0')
-    .requiredOption('--url <url>', 'postgres://user@host:5432/db (jdbc:postgresql://... is accepted too)')
+  const cmd = new Command('pg-erd')
+    .description('Renders a PostgreSQL schema as an entity-relationship diagram (PNG and/or SVG).')
+    .version('0.3.0')
+    .helpOption('--help', 'show this help')
+    .option('-h, --host <host>', 'database server host (default: PGHOST or localhost)')
+    .option('-p, --port <port>', 'database server port (default: PGPORT or 5432)', number)
+    .option('-d, --dbname <name>', 'database name (default: PGDATABASE or the user name)')
     .option('-U, --user <user>', 'database user (default: PGUSER or the OS user)')
     .option('--password <password>', 'database password (prefer --password-env or PGPASSWORD)')
     .option('--password-env <var>', 'environment variable holding the password', 'PGPASSWORD')
+    .option('--url <url>', 'connection URL instead of the flags above: postgres://user:pass@host:5432/db (jdbc:postgresql://... works too)')
     .option('-s, --schema <schema>', 'schema to diagram', 'public')
     .option('-t, --table <table>', "diagram one table with the tables it references and that reference it (DBeaver's table ERD tab)")
     .option('--include <globs>', 'only tables matching these globs (comma separated)', list, [])
     .option('--exclude <globs>', 'skip tables matching these globs', list, [])
-    .option('--no-views', 'leave views out (DBeaver default shows them)')
+    .option('--no-views', 'leave views out')
     .option('--partitions', 'include partition child tables', false)
     .option('-o, --out <file.png>', 'PNG output file')
     .option('--svg <file.svg>', 'SVG output file')
     .option('--svg-embed-font', 'embed the font in the SVG so it renders identically everywhere', false)
     .option('--scale <n>', 'scale factor for the PNG, e.g. 2 for HiDPI (fractions allowed)', number, 1)
     .option('--notation <idef1x|crowsfoot>', 'connection notation', 'idef1x')
-    .option('--look <name>', `visual style: ${LOOK_NAMES.join(', ')}`, 'dbeaver')
+    .option('--look <name>', `visual style: ${LOOK_NAMES.join(', ')}`, 'clean')
     .option('--theme <light|dark>', 'light or dark variant of the look', 'light')
     .option('--attributes <all|keys|primary|none>', 'which columns to show', 'all')
     .option('--show <styles>', 'extra view styles: types, nullability, comments, fqn, alpha (icons are on by default)', list, [])
     .option('--hide <styles>', 'view styles to turn off, e.g. icons', list, [])
     .option('--color <overrides>', `colour overrides separated by ';', values as #rrggbb or r,g,b, e.g. "lines=#008fcf;entity-background=255,255,225". Keys: ${Theme.KEYS.join(', ')}`, semiList, [])
-    .option('--font <family|file.ttf>', "installed font family or a .ttf/.otf file instead of the look's default (bundled Selawik with Segoe UI metrics; monospace for --look paper)")
+    .option('--font <family|file.ttf>', "installed font family or a .ttf/.otf file instead of the look's default (bundled Inter; monospace for --look paper)")
     .option('--font-bold <file.ttf>', 'bold face when --font is a file')
-    .option('--font-size <pt>', "font size in points (DBeaver's default: 9)", number, DEFAULT_POINT_SIZE)
-    .addHelpText('after', '\nExit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.')
+    .option('--font-size <pt>', 'font size in points', number, DEFAULT_POINT_SIZE)
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  pg-erd -h db.example.com -d app -U app -o erd.png',
+      '  pg-erd -d app --svg erd.svg --look pastel --theme dark',
+      '  pg-erd --url postgres://app:secret@db.example.com/app -s billing -o billing.png',
+      '',
+      'Exit codes: 0 ok, 1 usage error, 2 database/render error, 3 no tables found.',
+    ].join('\n'))
     .showHelpAfterError();
   return cmd;
 }

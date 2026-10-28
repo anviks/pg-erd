@@ -5,7 +5,7 @@ import { isSelfReference } from '../src/model/index.js';
 import { toPng } from '../src/render/png.js';
 import { render, type RenderedDiagram } from '../src/render/pipeline.js';
 import { LOOK_NAMES, Look } from '../src/style/look.js';
-import { indentation, type Notation } from '../src/style/options.js';
+import { straightRun, type Notation } from '../src/style/options.js';
 import { hub, multiFk, options, shop } from './fixtures.js';
 
 const OUT = 'test-output';
@@ -28,7 +28,7 @@ function check(d: RenderedDiagram, what: string): void {
       expect(c.xs[i] === c.xs[i - 1] || c.ys[i] === c.ys[i - 1], `${name}: segment ${i} not axis-aligned`).toBe(true);
     }
     if (c.size >= 3) {
-      const straight = indentation(d.options.notation);
+      const straight = straightRun(d.options.notation);
       expect(Math.abs(c.xs[1] - c.xs[0]), `${name}: first segment shorter than the end symbol`).toBeGreaterThanOrEqual(straight);
       expect(Math.abs(c.xs[c.size - 1] - c.xs[c.size - 2]), `${name}: last segment shorter than the end symbol`).toBeGreaterThanOrEqual(straight);
     }
