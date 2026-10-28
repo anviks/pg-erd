@@ -1,11 +1,34 @@
 {
   "name": "@anviks/pg-erd",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Headless PostgreSQL ERD renderer: schema to PNG/SVG, laid out with ELK",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anviks/pg-erd.git"
+  },
+  "homepage": "https://github.com/anviks/pg-erd#readme",
+  "bugs": {
+    "url": "https://github.com/anviks/pg-erd/issues"
+  },
+  "author": "Andreas Viks",
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "erd",
+    "entity-relationship",
+    "diagram",
+    "schema",
+    "svg",
+    "png",
+    "elk"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
-    "dbeaver-erd": "bin/dbeaver-erd.js"
+    "pg-erd": "bin/pg-erd.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,7 +38,8 @@
     "resources",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
-    "licenses"
+    "licenses",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"

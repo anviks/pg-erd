@@ -1,5 +1,5 @@
 import { Command, InvalidArgumentError } from 'commander';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import pg from 'pg';
 import { parse as parseConnectionString } from 'pg-connection-string';
@@ -111,10 +111,15 @@ export function buildOptions(o: CliOptions): RenderOptions {
   return r;
 }
 
+function packageVersion(): string {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+  return pkg.version;
+}
+
 export function program(): Command {
   const cmd = new Command('pg-erd')
     .description('Renders a PostgreSQL schema as an entity-relationship diagram (PNG and/or SVG).')
-    .version('0.3.0')
+    .version(packageVersion())
     .helpOption('--help', 'show this help')
     .option('-h, --host <host>', 'database server host (default: PGHOST or localhost)')
     .option('-p, --port <port>', 'database server port (default: PGPORT or 5432)', number)
@@ -156,6 +161,20 @@ export function program(): Command {
   return cmd;
 }
 
+/** A readable message for driver errors, which can be empty AggregateErrors (e.g. connection refused). */
+function describe(e: unknown, passwordEnv: string): string {
+  const err = e as Error & { code?: string; errors?: Error[]; address?: string; port?: number };
+  const inner = err.errors?.find((x) => x.message) ?? err;
+  let msg = inner.message || err.code || String(e);
+  if (/password must be a string/.test(msg)) msg = `no password given: set ${passwordEnv || 'PGPASSWORD'}, use --password-env or --password`;
+  const code = (inner as { code?: string }).code;
+  if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
+    const where = (inner as { address?: string; hostname?: string; port?: number });
+    msg = `cannot reach the database server at ${where.hostname ?? where.address ?? 'the given host'}${where.port ? ':' + where.port : ''} (${code})`;
+  }
+  return msg;
+}
+
 export async function main(argv: string[]): Promise<number> {
   const cmd = program();
   cmd.exitOverride();
@@ -191,9 +210,7 @@ export async function main(argv: string[]): Promise<number> {
     });
     diagram = o.table ? await reader.readTable(o.schema, o.table) : await reader.readSchema(o.schema);
   } catch (e) {
-    let msg = (e as Error).message;
-    if (/password must be a string/.test(msg)) msg = `no password given: set ${o.passwordEnv || 'PGPASSWORD'}, use --password-env or --password`;
-    console.error(`database error: ${msg}`);
+    console.error(`database error: ${describe(e, o.passwordEnv)}`);
     return 2;
   } finally {
     await client.end().catch(() => undefined);
